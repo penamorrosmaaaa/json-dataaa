@@ -231,27 +231,26 @@ const DataTable = () => {
   // Memoized historic data for the selected row to optimize performance
   const historicData = useMemo(() => {
     if (!selectedRow) return [];
-
+  
     // Filter allData for the selected object
     const filtered = allData.filter(
       (row) => row.Object === selectedRow.object && row.Date
     );
-
+  
     // Map to desired format
     const mappedData = filtered.map((row) => {
-      // **Accurate Date Parsing Starts Here**
-      // Ensure the date is parsed correctly by manually extracting components
+      // Correct Date Parsing
       const dateParts = row.Date.split("-");
       if (dateParts.length !== 3) {
         console.error(`Invalid date format for row: ${row.Date}`);
         return {
-          x: row.Date, // Keep original date string
+          x: row.Date,
           y: parseInt(row["Request Count"], 10),
           dayOfWeek: null,
           isSunday: false,
         };
       }
-
+  
       const [year, month, day] = dateParts.map(Number);
       if (
         isNaN(year) ||
@@ -264,32 +263,30 @@ const DataTable = () => {
       ) {
         console.error(`Invalid date components for row: ${row.Date}`);
         return {
-          x: row.Date, // Keep original date string
+          x: row.Date,
           y: parseInt(row["Request Count"], 10),
           dayOfWeek: null,
           isSunday: false,
         };
       }
-
-      // Create a UTC date to avoid timezone issues
-      const dateObj = new Date(Date.UTC(year, month - 1, day));
-
-      // **Accurate Date Parsing Ends Here**
-
+  
+      // Correct date creation for local timezone (instead of UTC)
+      const dateObj = new Date(year, month - 1, day); // Local timezone
+  
       return {
-        x: row.Date, // Date string in 'YYYY-MM-DD' format
+        x: row.Date,
         y: parseInt(row["Request Count"], 10),
-        dayOfWeek: dateObj.getUTCDay(), // 0 (Sunday) to 6 (Saturday)
-        isSunday: dateObj.getUTCDay() === 0,
+        dayOfWeek: dateObj.getDay(), // 0 (Sunday) to 6 (Saturday)
+        isSunday: dateObj.getDay() === 0, // Corrected to use getDay()
       };
     });
-
+  
     // Remove any entries with invalid dates
     const validMappedData = mappedData.filter((d) => d.dayOfWeek !== null);
-
+  
     // Sort by date ascending
     validMappedData.sort((a, b) => new Date(a.x) - new Date(b.x));
-
+  
     return validMappedData;
   }, [selectedRow, allData]);
 
@@ -399,24 +396,25 @@ const DataTable = () => {
   };
 
   // Loading State
-  if (loading) {
-    return (
-      <Box
-        p={5}
-        bg="radial-gradient(circle, #000000 0%, #7800ff 100%)"
-        minH="100vh"
-        color="white"
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-      >
-        <Spinner size="xl" />
-        <Text ml={4} fontSize="2xl">
-          Loading data...
-        </Text>
-      </Box>
-    );
-  }
+// Loading State
+if (loading) {
+  return (
+    <Flex
+      p={5}
+      bg="radial-gradient(circle, #000000 0%, #7800ff 100%)"
+      minH="100vh"
+      color="white"
+      justify="center"
+      align="center"
+    >
+      <Spinner size="xl" />
+      <Text ml={4} fontSize="2xl">
+        Loading data...
+      </Text>
+    </Flex>
+  );
+}
+
 
   // Error State
   if (error) {
@@ -450,23 +448,23 @@ const DataTable = () => {
     >
       {/* Table and Detailed Graph Section */}
       <Flex
-  direction={{ base: "column", md: "row" }}
-  width={{ base: "1200px", md: "1500px" }} // Increase width here
-  overflow="hidden"
->
-
+        direction={{ base: "column", md: "row" }}
+        width="100%" // Use full width
+        maxW="1500px" // Set maximum width for larger screens
+        px={{ base: 2, md: 4 }} // Add horizontal padding
+        overflow="hidden"
+      >
         {/* Table Section */}
         <Box
-  bg="rgba(255, 255, 255, 0.1)"
-  borderRadius="md"
-  p={6}
-  boxShadow="lg"
-  flex="1" // Reduce this to make the table section smaller
-  mr={{ base: 0, md: 8 }}
-  mb={{ base: 8, md: 0 }}
-  overflow="hidden"
->
-
+          bg="rgba(255, 255, 255, 0.1)"
+          borderRadius="md"
+          p={6}
+          boxShadow="lg"
+          flex="1" // Allocate proportional space
+          mr={{ base: 0, md: 8 }}
+          mb={{ base: 8, md: 0 }}
+          overflow="hidden"
+        >
           {/* Navigation Arrows */}
           <Box display="flex" alignItems="center" mb={4}>
             <IconButton
@@ -476,8 +474,10 @@ const DataTable = () => {
               aria-label="Previous Date"
               mr={2}
             />
-            <Text fontSize="xl">
-              {currentDate ? `Viewing Data for: ${currentDate}` : "No Date Selected"}
+            <Text fontSize={{ base: "lg", md: "xl" }}>
+              {currentDate
+                ? `Viewing Data for: ${currentDate}`
+                : "No Date Selected"}
             </Text>
             <IconButton
               icon={<ChevronRightIcon />}
@@ -488,13 +488,13 @@ const DataTable = () => {
             />
           </Box>
 
-          <Text fontSize="2xl" mb={4} textAlign="center">
+          <Text fontSize={{ base: "xl", md: "2xl" }} mb={4} textAlign="center">
             Data Overview ({currentDate})
           </Text>
           <TableContainer
-            overflowY="scroll"
-            maxH="400px" // Adjust this value based on the approximate height of 10 rows
-            overflowX="hidden" // Prevent horizontal scrolling
+            overflowY="auto" // Use 'auto' to allow scrolling when necessary
+            maxH={{ base: "300px", md: "400px" }} // Adjust max height responsively
+            overflowX="auto" // Allow horizontal scrolling on small screens
           >
             <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
               <Thead>
@@ -513,33 +513,31 @@ const DataTable = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {displayedData.map((row, index) => {
-                  return (
-                    <Tr
-                      key={index}
-                      _hover={{
-                        bg: "rgba(255, 255, 255, 0.2)",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => handleRowClick(row)}
-                      bg={
-                        selectedRow && selectedRow.object === row.object
-                          ? "rgba(255, 255, 255, 0.3)"
-                          : "transparent"
-                      } // Highlight the selected row
-                    >
-                      <Td>
-                        <Tooltip label={row.object} hasArrow>
-                          <Text isTruncated maxW="200px">
-                            {row.object}
-                          </Text>
-                        </Tooltip>
-                      </Td>
-                      <Td isNumeric>{row.percentage}</Td>
-                      <Td isNumeric>{row.amount}</Td>
-                    </Tr>
-                  );
-                })}
+                {displayedData.map((row, index) => (
+                  <Tr
+                    key={index}
+                    _hover={{
+                      bg: "rgba(255, 255, 255, 0.2)",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => handleRowClick(row)}
+                    bg={
+                      selectedRow && selectedRow.object === row.object
+                        ? "rgba(255, 255, 255, 0.3)"
+                        : "transparent"
+                    } // Highlight the selected row
+                  >
+                    <Td>
+                      <Tooltip label={row.object} hasArrow>
+                        <Text isTruncated maxW="200px">
+                          {row.object}
+                        </Text>
+                      </Tooltip>
+                    </Td>
+                    <Td isNumeric>{row.percentage}</Td>
+                    <Td isNumeric>{row.amount}</Td>
+                  </Tr>
+                ))}
               </Tbody>
               <Tfoot>
                 <Tr>
@@ -562,16 +560,19 @@ const DataTable = () => {
 
         {/* Detailed Graph Section */}
         <Box
-  bg="rgba(255, 255, 255, 0.1)"
-  borderRadius="md"
-  p={6}
-  boxShadow="lg"
-  flex="2" // Increase this to allocate more space to the graph
-  overflow="hidden"
->
-
+          bg="rgba(255, 255, 255, 0.1)"
+          borderRadius="md"
+          p={6}
+          boxShadow="lg"
+          flex="2" // Allocate proportional space
+          overflow="hidden"
+        >
           <Flex direction="column" alignItems="center" mb={4}>
-            <Text fontSize="2xl" mb={4} textAlign="center">
+            <Text
+              fontSize={{ base: "xl", md: "2xl" }}
+              mb={4}
+              textAlign="center"
+            >
               {getGraphTitle()}
             </Text>
             {selectedRow && (
@@ -580,7 +581,7 @@ const DataTable = () => {
                 gap={4}
                 mb={4}
                 width="100%"
-                maxW="900px"
+                maxW="900px" // Use maxWidth for better responsiveness
               >
                 {/* Day-of-Week Dropdown */}
                 <FormControl>
@@ -635,12 +636,12 @@ const DataTable = () => {
             )}
           </Flex>
           {selectedRow ? (
-            <Box overflow="auto">
+            <Box overflow="auto" width="100%">
               <Plot
                 data={traces}
                 layout={{
                   autosize: true,
-                  height: 500, // Adjusted height for better visibility
+                  height: { base: 300, md: 500 }, // Responsive height
                   margin: { l: 50, r: 50, t: 50, b: 100 }, // Increased bottom margin for x-axis labels
                   paper_bgcolor: "rgba(0,0,0,0)",
                   plot_bgcolor: "rgba(0,0,0,0)",

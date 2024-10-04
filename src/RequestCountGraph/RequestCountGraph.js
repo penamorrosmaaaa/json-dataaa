@@ -1,4 +1,5 @@
 /* src/components/RequestCountGraph/RequestCountGraph.js */
+
 import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
@@ -7,6 +8,9 @@ import {
   Spinner,
   Select,
   Button,
+  FormControl,
+  FormLabel,
+  useBreakpointValue,
 } from "@chakra-ui/react";
 import Plot from "react-plotly.js";
 import Papa from "papaparse"; // Import PapaParse
@@ -33,7 +37,10 @@ const RequestCountGraph = () => {
   }, []);
 
   // State for visible range on the x-axis (preset to the most recent 6 months)
-  const [visibleRange, setVisibleRange] = useState([sixMonthsAgo, currentDate]);
+  const [visibleRange, setVisibleRange] = useState([
+    sixMonthsAgo,
+    currentDate,
+  ]);
 
   // States for day filters
   const [selectedDay, setSelectedDay] = useState("All");
@@ -43,12 +50,15 @@ const RequestCountGraph = () => {
   // Function to fetch and process CSV data using PapaParse
   const fetchAndProcessCSV = async () => {
     try {
-      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTVHwv5X6-u3M7f8HJNih14hSnVpBlNKFUe_O76bTUJ2PaaOAfrqIrwjWsyc9DNFKxcYoEsWutl1_K6/pub?output=csv"; // **Updated CSV URL**
+      const csvUrl =
+        "https://docs.google.com/spreadsheets/d/e/2PACX-1vTVHwv5X6-u3M7f8HJNih14hSnVpBlNKFUe_O76bTUJ2PaaOAfrqIrwjWsyc9DNFKxcYoEsWutl1_K6/pub?output=csv"; // **Updated CSV URL**
 
       const response = await fetch(csvUrl);
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch CSV data: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch CSV data: ${response.status} ${response.statusText}`
+        );
       }
 
       const csvText = await response.text();
@@ -78,14 +88,18 @@ const RequestCountGraph = () => {
         const requestCountStr = row["Request Count"]?.trim(); // **Updated to match CSV header**
 
         if (!date || !requestCountStr) {
-          console.warn(`Skipping row ${index + 2} due to missing date or request count.`);
+          console.warn(
+            `Skipping row ${index + 2} due to missing date or request count.`
+          );
           return; // Skip rows with missing data
         }
 
         const requestCount = parseInt(requestCountStr, 10);
 
         if (isNaN(requestCount)) {
-          console.warn(`Invalid request count on row ${index + 2}: ${requestCountStr}`);
+          console.warn(
+            `Invalid request count on row ${index + 2}: ${requestCountStr}`
+          );
           return; // Skip rows with invalid request counts
         }
 
@@ -209,7 +223,7 @@ const RequestCountGraph = () => {
 
     if (selectedDay !== "All") {
       const dayNumber = daysMap[selectedDay];
-      filtered = filtered.filter((d) => {
+      filtered = aggregatedData.filter((d) => {
         const day = new Date(d.date).getDay();
         return day === dayNumber;
       });
@@ -259,12 +273,21 @@ const RequestCountGraph = () => {
       );
 
       // Create maps for easy lookup
-      const primaryMap = new Map(primaryData.map((d) => [d.date, d.totalRequests]));
-      const comparisonMap = new Map(comparisonData.map((d) => [d.date, d.totalRequests]));
+      const primaryMap = new Map(
+        primaryData.map((d) => [d.date, d.totalRequests])
+      );
+      const comparisonMap = new Map(
+        comparisonData.map((d) => [d.date, d.totalRequests])
+      );
 
       // Create a sorted list of all unique dates from both datasets
-      const allDatesSet = new Set([...primaryMap.keys(), ...comparisonMap.keys()]);
-      const allDates = Array.from(allDatesSet).sort((a, b) => new Date(a) - new Date(b));
+      const allDatesSet = new Set([
+        ...primaryMap.keys(),
+        ...comparisonMap.keys(),
+      ]);
+      const allDates = Array.from(allDatesSet).sort(
+        (a, b) => new Date(a) - new Date(b)
+      );
 
       // Create y-values aligned to allDates
       const primaryY = allDates.map((date) => primaryMap.get(date) || 0);
@@ -313,7 +336,7 @@ const RequestCountGraph = () => {
             selectedDay === "All"
               ? filteredData.map((d) => {
                   const day = new Date(d.date).getDay();
-                  return day === 0 ? "#FF4136" : "#0074D9"; // Red for Sundays, Blue otherwise
+                  return day === 6 ? "#FF4136" : "#0074D9"; // Red for Saturdays, Blue otherwise
                 })
               : "#0074D9",
           line: {
@@ -346,7 +369,9 @@ const RequestCountGraph = () => {
         seenMonths.add(monthKey);
         const isoDate = d.date; // Assuming d.date is in ISO format "YYYY-MM-DD"
         ticks.push(isoDate);
-        labels.push(date.toLocaleString("default", { month: "short", year: "numeric" }));
+        labels.push(
+          date.toLocaleString("default", { month: "short", year: "numeric" })
+        );
       }
     });
 
@@ -363,11 +388,14 @@ const RequestCountGraph = () => {
     });
     console.log("Visible Data Count:", visibleData.length);
     if (visibleData.length === 0) {
-      console.warn("No data visible in the current range. Setting default Y-Axis Range.");
+      console.warn(
+        "No data visible in the current range. Setting default Y-Axis Range."
+      );
       return [0, 100]; // Default range if no data is visible
     }
     const maxRequest = Math.max(...visibleData.map((d) => d.totalRequests), 0);
-    const calculatedRange = maxRequest > 0 ? [0, maxRequest * 1.1] : [0, 100];
+    const calculatedRange =
+      maxRequest > 0 ? [0, Math.ceil(maxRequest * 1.1)] : [0, 100];
     console.log("Calculated Y-Axis Range:", calculatedRange);
     return calculatedRange; // 10% buffer
   }, [visibleRange, filteredData]);
@@ -377,6 +405,11 @@ const RequestCountGraph = () => {
     loadData();
   };
 
+  // Determine responsive font sizes and control sizes
+  const controlFontSize = useBreakpointValue({ base: "sm", md: "md" });
+  const controlPadding = useBreakpointValue({ base: 2, md: 4 });
+  const buttonSize = useBreakpointValue({ base: "sm", md: "md" });
+
   return (
     <Box
       p={5}
@@ -385,40 +418,43 @@ const RequestCountGraph = () => {
       color="white"
       display="flex"
       flexDirection="column"
-      alignItems="center"
-      overflow="hidden"
+      alignItems="center" // Center child components horizontally
+      overflow="hidden" // Prevent overall overflow
+      width="100%" // Ensure the Box takes full width
     >
-      <Flex
-  direction="column"
-  width={{ base: "1200%", md: "1500" }} // Increase width to 95%
-  maxW="1600px" // Increase max width to make the chart container larger
-  gap={10} // Space between charts
->
-        {/* Controls Section */}
-        <Box
-  bg="rgba(255, 255, 255, 0.1)"
-  borderRadius="md"
-  p={4}
-  boxShadow="lg"
-  width="100%"
-  flex="1" // Assign a smaller flex value to take up less space
->
-
+      {/* Single Container Box for All Elements */}
+      <Box
+        bg="rgba(255, 255, 255, 0.1)"
+        borderRadius="md"
+        p={6}
+        boxShadow="lg"
+        width="100%"
+        maxW="1600px" // Maximum width to constrain on larger screens
+      >
+        <Flex
+          direction={{ base: "column", md: "column" }} // Always column to stack controls on top
+          justifyContent="space-between"
+          alignItems="stretch"
+          gap={6}
+        >
+          {/* Controls Section */}
           <Flex
-            alignItems="center"
-            flexDirection={{ base: "column", md: "row" }}
+            direction={{ base: "column", md: "row" }}
+            justifyContent="flex-start"
+            alignItems={{ base: "flex-start", md: "center" }}
             gap={4}
+            wrap="wrap"
           >
             {/* Primary Day Selection */}
-            <Flex alignItems="center">
-              <Text fontSize="lg" mr={4}>
+            <FormControl size="sm" maxW="200px">
+              <FormLabel fontSize={controlFontSize} mb={1}>
                 Select Day:
-              </Text>
+              </FormLabel>
               <Select
                 placeholder="All Days"
                 value={selectedDay}
                 onChange={handleDayChange}
-                maxW="200px"
+                size="sm"
               >
                 <option value="All">All Days</option>
                 <option value="Monday">Monday</option>
@@ -429,30 +465,29 @@ const RequestCountGraph = () => {
                 <option value="Saturday">Saturday</option>
                 <option value="Sunday">Sunday</option>
               </Select>
-            </Flex>
+            </FormControl>
 
             {/* Compare Button */}
-            <Flex alignItems="center">
-              <Button
-                onClick={toggleCompare}
-                colorScheme={isComparing ? "teal" : "gray"}
-                variant={isComparing ? "solid" : "outline"}
-              >
-                {isComparing ? "Cancel Compare" : "Compare"}
-              </Button>
-            </Flex>
+            <Button
+              onClick={toggleCompare}
+              colorScheme={isComparing ? "teal" : "gray"}
+              variant={isComparing ? "solid" : "outline"}
+              size="sm"
+            >
+              {isComparing ? "Cancel Compare" : "Compare"}
+            </Button>
 
             {/* Secondary Day Selection for Comparison */}
             {isComparing && (
-              <Flex alignItems="center">
-                <Text fontSize="lg" mr={4}>
+              <FormControl size="sm" maxW="200px">
+                <FormLabel fontSize={controlFontSize} mb={1}>
                   Compare with:
-                </Text>
+                </FormLabel>
                 <Select
                   placeholder="Select Day"
                   value={compareDay}
                   onChange={handleCompareDayChange}
-                  maxW="200px"
+                  size="sm"
                 >
                   {/* Removed the redundant "All Days" option here */}
                   <option value="Monday">Monday</option>
@@ -463,144 +498,148 @@ const RequestCountGraph = () => {
                   <option value="Saturday">Saturday</option>
                   <option value="Sunday">Sunday</option>
                 </Select>
-              </Flex>
+              </FormControl>
             )}
 
-            {/* **Refresh Button** */}
-            <Flex alignItems="center">
-              <Button
-                onClick={refreshData}
-                colorScheme="blue"
-                variant="solid"
-              >
-                Refresh Data
-              </Button>
-            </Flex>
-          </Flex>
-        </Box>
-
-        {/* Main Chart */}
-        <Box
-  bg="rgba(255, 255, 255, 0.1)"
-  borderRadius="md"
-  p={6}
-  boxShadow="lg"
-  width="100%"
-  flex="3" // Assign a larger flex value to allocate more space to the chart
->
-
-          <Flex justifyContent="space-between" alignItems="center" mb={6}>
-            <Text fontSize="2xl" textAlign="center">
-              {isLoading || error ? "Request Count Over Time" : getTitle()}
-            </Text>
-            {/* **Optional: Display Last Updated Time** */}
-            {!isLoading && !error && (
-              <Text fontSize="sm" color="gray.300">
-                Last Updated: {new Date().toLocaleString()}
-              </Text>
-            )}
-          </Flex>
-          {isLoading ? (
-            <Flex
-              justifyContent="center"
-              alignItems="center"
-              height="600px"
+            {/* Refresh Button */}
+            <Button
+              onClick={refreshData}
+              colorScheme="blue"
+              variant="solid"
+              size="sm"
             >
-              <Spinner size="xl" color="white" />
+              Refresh Data
+            </Button>
+          </Flex>
+
+          {/* Chart Section */}
+          <Box width="100%">
+            <Flex justifyContent="space-between" alignItems="center" mb={4}>
+              <Text fontSize={{ base: "lg", md: "xl" }} textAlign="center">
+                {isLoading || error ? "Request Count Over Time" : getTitle()}
+              </Text>
+              {/* **Optional: Display Last Updated Time** */}
+              {!isLoading && !error && (
+                <Text fontSize="sm" color="gray.300">
+                  Last Updated: {new Date().toLocaleString()}
+                </Text>
+              )}
             </Flex>
-          ) : error ? (
-            <Text color="red.500" textAlign="center">
-              {error}
-            </Text>
-          ) : aggregatedData.length === 0 ? (
-            <Text color="white" textAlign="center">
-              No data available to display.
-            </Text>
-          ) : (
-            <Plot
-              data={traces}
-              layout={{
-                autosize: true,
-                height: 600, // Taller height for detailed view
-                margin: { l: 80, r: 30, t: 60, b: 150 }, // Increased bottom margin for x-axis labels
-                paper_bgcolor: "rgba(0,0,0,0)",
-                plot_bgcolor: "rgba(0,0,0,0)",
-                xaxis: {
-                  title: "Date", // Changed from "Month" to "Date"
-                  type: "date", // Changed from 'category' to 'date'
-                  showgrid: true,
-                  gridcolor: "#444",
-                  tickfont: { color: "white", size: 10 },
-                  showticklabels: true, // Ensure tick labels are shown
-                  tickangle: filteredData.length > 20 ? -45 : 0, // Rotate labels if many data points
-                  fixedrange: true, // Disable zooming and panning on x-axis
-                  range: visibleRange.map((dateStr) => new Date(dateStr).toISOString()), // Ensure ISO format
-                  rangeslider: {
-                    visible: true,
-                    bgcolor: "rgba(0, 0, 0, 0)", // Set background to transparent
-                    thickness: 0.15, // Thickness of the slider
-                    range: aggregatedData.length > 0
-                      ? [
-                          aggregatedData[0].date,
-                          aggregatedData[aggregatedData.length - 1].date,
-                        ]
-                      : [sixMonthsAgo, currentDate], // Full data range
-                    tickformat: "%b %Y", // Adjusted to match month-year format
-                  },
-                  rangeselector: {
-                    visible: false, // Hide range selector buttons
-                  },
-                  // **Apply Monthly Ticks Based on Filtered Data**
-                  tickmode: monthTicks.tickVals.length > 0 ? "array" : "auto",
-                  tickvals: monthTicks.tickVals.length > 0 ? monthTicks.tickVals : undefined,
-                  ticktext: monthTicks.tickTexts.length > 0 ? monthTicks.tickTexts : undefined,
-                },
-                yaxis: {
-                  title: "Total Requests",
-                  showgrid: true,
-                  gridcolor: "#444",
-                  tickfont: { color: "white" },
-                  range: yAxisRange, // **Dynamic Y-Axis Range**
-                  fixedrange: false, // **Allow Y-Axis Interactivity**
-                  autorange: false, // **Disable Auto Range to use custom range**
-                },
-                font: {
-                  color: "white",
-                },
-                legend: {
-                  orientation: "h",
-                  y: -0.2,
-                  x: 0.5,
-                  xanchor: "center",
-                  yanchor: "top",
-                },
-                // **Set Barmode to Group**
-                barmode: "group",
-              }}
-              config={{
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: [
-                  "zoom2d",
-                  "pan2d",
-                  "select2d",
-                  "lasso2d",
-                  "zoomIn2d",
-                  "zoomOut2d",
-                  "autoScale2d",
-                  "resetScale2d",
-                  "hoverClosestCartesian",
-                  "hoverCompareCartesian",
-                ],
-                scrollZoom: false, // Disable scroll zoom
-                doubleClick: false, // Disable double-click zoom
-              }}
-              style={{ width: "100%", height: "100%" }} // Make Plot responsive
-              onRelayout={handleRelayout} // Handle relayout events
-            />
-          )}
-        </Box>
-      </Flex>
+            {isLoading ? (
+              <Flex justifyContent="center" alignItems="center" height="300px">
+                <Spinner size="xl" color="white" />
+              </Flex>
+            ) : error ? (
+              <Text color="red.500" textAlign="center">
+                {error}
+              </Text>
+            ) : aggregatedData.length === 0 ? (
+              <Text color="white" textAlign="center">
+                No data available to display.
+              </Text>
+            ) : (
+              <Box
+                overflow="auto"
+                width="100%"
+                height={{ base: "400px", md: "600px" }}
+              >
+                <Plot
+                  data={traces}
+                  layout={{
+                    autosize: true,
+                    height: "100%", // Full height of the container
+                    margin: { l: 80, r: 30, t: 60, b: 150 }, // Increased bottom margin for x-axis labels
+                    paper_bgcolor: "rgba(0,0,0,0)",
+                    plot_bgcolor: "rgba(0,0,0,0)",
+                    xaxis: {
+                      title: "Date", // Changed from "Month" to "Date"
+                      type: "date", // Changed from 'category' to 'date'
+                      showgrid: true,
+                      gridcolor: "#444",
+                      tickfont: { color: "white", size: 10 },
+                      showticklabels: true, // Ensure tick labels are shown
+                      tickangle: filteredData.length > 20 ? -45 : 0, // Rotate labels if many data points
+                      fixedrange: true, // Disable zooming and panning on x-axis
+                      range: visibleRange.map((dateStr) =>
+                        new Date(dateStr).toISOString()
+                      ), // Ensure ISO format
+                      rangeslider: {
+                        visible: true,
+                        bgcolor: "rgba(0, 0, 0, 0)", // Set background to transparent
+                        thickness: 0.15, // Thickness of the slider
+                        range:
+                          aggregatedData.length > 0
+                            ? [
+                                aggregatedData[0].date,
+                                aggregatedData[aggregatedData.length - 1].date,
+                              ]
+                            : [sixMonthsAgo, currentDate], // Full data range
+                        tickformat: "%b %Y", // Adjusted to match month-year format
+                      },
+                      rangeselector: {
+                        visible: false, // Hide range selector buttons
+                      },
+                      // **Apply Monthly Ticks Based on Filtered Data**
+                      tickmode:
+                        monthTicks.tickVals.length > 0 ? "array" : "auto",
+                      tickvals:
+                        monthTicks.tickVals.length > 0
+                          ? monthTicks.tickVals
+                          : undefined,
+                      ticktext:
+                        monthTicks.tickTexts.length > 0
+                          ? monthTicks.tickTexts
+                          : undefined,
+                    },
+                    yaxis: {
+                      title: "Total Requests",
+                      showgrid: true,
+                      gridcolor: "#444",
+                      tickfont: { color: "white" },
+                      range: yAxisRange, // **Dynamic Y-Axis Range**
+                      fixedrange: false, // **Allow Y-Axis Interactivity**
+                      autorange: false, // **Disable Auto Range to use custom range**
+                    },
+                    font: {
+                      color: "white",
+                    },
+                    legend: {
+                      orientation: "h",
+                      y: -0.2,
+                      x: 0.5,
+                      xanchor: "center",
+                      yanchor: "top",
+                    },
+                    // **Set Barmode to Group**
+                    barmode: "group",
+                  }}
+                  config={{
+                    displayModeBar: true,
+                    displaylogo: false,
+                    modeBarButtonsToRemove: [
+                      "zoom2d",
+                      "pan2d",
+                      "select2d",
+                      "lasso2d",
+                      "zoomIn2d",
+                      "zoomOut2d",
+                      "autoScale2d",
+                      "resetScale2d",
+                      "hoverClosestCartesian",
+                      "hoverCompareCartesian",
+                    ],
+                    scrollZoom: false, // Disable scroll zoom
+                    doubleClick: false, // Disable double-click zoom
+                  }}
+                  useResizeHandler={true}
+                  style={{ width: "100%", height: "100%" }} // Make Plot responsive
+                  onRelayout={handleRelayout} // Handle relayout events
+                />
+              </Box>
+            )}
+          </Box>
+        </Flex>
+      </Box>
     </Box>
   );
 };

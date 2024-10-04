@@ -1,4 +1,4 @@
-/* src/components/General/General.js */
+// src/components/General/General.js
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -7,24 +7,34 @@ import {
   Flex,
   Spinner,
   Button,
+  Select,
+  Grid,
+  FormControl,
+  FormLabel,
 } from "@chakra-ui/react";
 import Papa from "papaparse";
 
-// Utility function to calculate percentage change
+// Define the time periods
+const PERIODS = {
+  CURRENT_WEEK: "Current Week",
+  CURRENT_MONTH: "Current Month",
+  CURRENT_YEAR: "Current Year",
+  ALL_TIME: "All-Time",
+};
+
+// Helper function to get the start of the week (Monday)
+const getStartOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+  return new Date(d.setDate(diff));
+};
+
+// **Utility function to calculate percentage change**
 const calculatePercentageChange = (current, previous) => {
   if (previous === 0 || previous === null) return "N/A";
   const change = ((current - previous) / previous) * 100;
   return change.toFixed(2);
-};
-
-// Utility function to get ISO week number (not used here but kept for reference)
-const getWeekNumber = (date) => {
-  const tempDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = tempDate.getUTCDay() || 7;
-  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
-  return weekNo;
 };
 
 const General = () => {
@@ -34,6 +44,11 @@ const General = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [comparisonMode, setComparisonMode] = useState("percentage"); // 'percentage' or 'raw'
+  const [selectedPeriod, setSelectedPeriod] = useState(PERIODS.ALL_TIME); // Default to All-Time
+  const [averageData, setAverageData] = useState({
+    totalAvg: "N/A",
+    envivoAvg: "N/A",
+  });
 
   // Fetch and parse CSV data
   useEffect(() => {
@@ -97,6 +112,10 @@ const General = () => {
             envivoRequests: envivoRequestsMap[date] || 0,
           }));
 
+          // Debug: Log aggregated data
+          console.log("Total Requests Data:", totalRequestsData);
+          console.log("Envivo Requests Data:", envivoRequestsData);
+
           setTotalData(totalRequestsData);
           setEnvivoData(envivoRequestsData);
           setIsLoading(false);
@@ -114,14 +133,92 @@ const General = () => {
     });
   }, []);
 
-  // Find the previous same day
-  const findPreviousSameDay = (currentDate, dataArray) => {
+  // Helper functions to filter data based on selected period
+  const filterDataByPeriod = (period) => {
+    if (totalData.length === 0) return { filteredTotal: [], filteredEnvivo: [] };
+
+    const latestDateStr = totalData[totalData.length - 1].date;
+    const latestDate = new Date(latestDateStr);
+
+    let filteredTotal = [];
+    let filteredEnvivo = [];
+
+    switch (period) {
+      case PERIODS.CURRENT_WEEK:
+        const startOfWeek = getStartOfWeek(latestDate);
+        filteredTotal = totalData.filter((d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate);
+        filteredEnvivo = envivoData.filter((d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate);
+        break;
+
+      case PERIODS.CURRENT_MONTH:
+        const currentMonth = latestDate.getMonth(); // 0-11
+        const currentYear = latestDate.getFullYear();
+        filteredTotal = totalData.filter(
+          (d) => new Date(d.date).getMonth() === currentMonth && new Date(d.date).getFullYear() === currentYear
+        );
+        filteredEnvivo = envivoData.filter(
+          (d) => new Date(d.date).getMonth() === currentMonth && new Date(d.date).getFullYear() === currentYear
+        );
+        break;
+
+      case PERIODS.CURRENT_YEAR:
+        const year = latestDate.getFullYear();
+        filteredTotal = totalData.filter((d) => new Date(d.date).getFullYear() === year);
+        filteredEnvivo = envivoData.filter((d) => new Date(d.date).getFullYear() === year);
+        break;
+
+      case PERIODS.ALL_TIME:
+      default:
+        filteredTotal = [...totalData];
+        filteredEnvivo = [...envivoData];
+        break;
+    }
+
+    return { filteredTotal, filteredEnvivo };
+  };
+
+  // Calculate averages based on selected period
+  useEffect(() => {
+    const { filteredTotal, filteredEnvivo } = filterDataByPeriod(selectedPeriod);
+
+    if (filteredTotal.length === 0) {
+      setAverageData({
+        totalAvg: "N/A",
+        envivoAvg: "N/A",
+      });
+      return;
+    }
+
+    const totalSum = filteredTotal.reduce((sum, d) => sum + d.totalRequests, 0);
+    const envivoSum = filteredEnvivo.reduce((sum, d) => sum + d.envivoRequests, 0);
+
+    const totalAvg = (totalSum / filteredTotal.length).toFixed(2);
+    const envivoAvg = (envivoSum / filteredEnvivo.length).toFixed(2);
+
+    setAverageData({
+      totalAvg,
+      envivoAvg,
+    });
+  }, [selectedPeriod, totalData, envivoData]);
+
+  // Function to find previous week's data for Total Requests
+  const findPreviousTotalRequest = (currentDate) => {
     const current = new Date(currentDate);
     const previousDate = new Date(current);
     previousDate.setDate(current.getDate() - 7);
     const formattedDate = previousDate.toISOString().split("T")[0];
-    const previousData = dataArray.find((d) => d.date === formattedDate);
+    const previousData = totalData.find((d) => d.date === formattedDate);
     return previousData ? previousData.totalRequests : null;
+  };
+
+  // Function to find previous week's data for Envivo Query
+  const findPreviousEnvivoRequest = (currentDate) => {
+    const current = new Date(currentDate);
+    const previousDate = new Date(current);
+    previousDate.setDate(current.getDate() - 7);
+    const formattedDate = previousDate.toISOString().split("T")[0];
+    const previousData = envivoData.find((d) => d.date === formattedDate);
+    return previousData ? previousData.envivoRequests : null;
   };
 
   // Calculate changes for Total Requests
@@ -133,7 +230,7 @@ const General = () => {
   const previousTotalRequest = useMemo(() => {
     if (!currentTotalRequest) return null;
     const currentDate = totalData[totalData.length - 1].date;
-    return findPreviousSameDay(currentDate, totalData);
+    return findPreviousTotalRequest(currentDate);
   }, [totalData, currentTotalRequest]);
 
   const totalRequestChange = useMemo(() => {
@@ -154,9 +251,9 @@ const General = () => {
   }, [envivoData]);
 
   const previousEnvivoRequest = useMemo(() => {
-    if (!currentEnvivoRequest) return null;
+    if (currentEnvivoRequest === null) return null;
     const currentDate = envivoData[envivoData.length - 1].date;
-    return findPreviousSameDay(currentDate, envivoData);
+    return findPreviousEnvivoRequest(currentDate);
   }, [envivoData, currentEnvivoRequest]);
 
   const envivoRequestChange = useMemo(() => {
@@ -205,111 +302,172 @@ const General = () => {
         </Text>
       ) : (
         <Flex
-          direction={{ base: "column", md: "row" }}
+          direction="column"
           gap={10}
           width="100%"
-          maxW="800px"
-          justifyContent="center"
+          maxW="1200px"
+          alignItems="center"
         >
-          {/* Daily Request Count Box */}
-          <Box
-            bg="rgba(255, 255, 255, 0.1)"
-            borderRadius="md"
-            p={6}
-            boxShadow="lg"
-            flex="1"
-          >
-            <Flex justifyContent="space-between" alignItems="center" mb={4}>
-              <Text fontSize="2xl">Daily Request Count</Text>
-              <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
-                Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
-              </Button>
-            </Flex>
-            <Flex direction="column" alignItems="center">
-              <Text fontSize="4xl" fontWeight="bold">
-                {currentTotalRequest !== null ? currentTotalRequest.toLocaleString() : "N/A"}
-              </Text>
-              <Flex alignItems="center" mt={2}>
-                {comparisonMode === "percentage" ? (
-                  <>
-                    <Text
-                      fontSize="lg"
-                      color={totalPercentageChange >= 0 ? "green.400" : "red.400"}
-                      mr={2}
-                    >
-                      {totalPercentageChange === "N/A" ? "N/A" : `${totalPercentageChange}%`}
-                    </Text>
-                    <Text fontSize="md">compared to last week</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text
-                      fontSize="lg"
-                      color={totalRequestChange >= 0 ? "green.400" : "red.400"}
-                      mr={2}
-                    >
-                      {totalRequestChange === "N/A"
-                        ? "N/A"
-                        : `${totalRequestChange >= 0 ? "+" : ""}${totalRequestChange}`}
-                    </Text>
-                    <Text fontSize="md">compared to last week</Text>
-                  </>
-                )}
-              </Flex>
-            </Flex>
+          {/* Dropdown for Selecting Period */}
+          <Box w="100%" maxW="400px">
+            <FormControl>
+              <FormLabel>Select Time Period</FormLabel>
+              <Select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                placeholder="Select Period"
+              >
+                {Object.values(PERIODS).map((period) => (
+                  <option key={period} value={period}>
+                    {period}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
 
-          {/* Daily Envivo Query Count Box */}
+          {/* Averages Display */}
           <Box
             bg="rgba(255, 255, 255, 0.1)"
             borderRadius="md"
             p={6}
             boxShadow="lg"
-            flex="1"
+            w="100%"
+            maxW="800px"
           >
-            <Flex justifyContent="space-between" alignItems="center" mb={4}>
-              <Text fontSize="2xl">Daily Envivo Query Count</Text>
-              <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
-                Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
-              </Button>
-            </Flex>
-            <Flex direction="column" alignItems="center">
-              <Text fontSize="4xl" fontWeight="bold">
-                {currentEnvivoRequest !== null
-                  ? currentEnvivoRequest.toLocaleString()
-                  : "N/A"}
-              </Text>
-              <Flex alignItems="center" mt={2}>
-                {comparisonMode === "percentage" ? (
-                  <>
-                    <Text
-                      fontSize="lg"
-                      color={envivoPercentageChange >= 0 ? "green.400" : "red.400"}
-                      mr={2}
-                    >
-                      {envivoPercentageChange === "N/A"
-                        ? "N/A"
-                        : `${envivoPercentageChange}%`}
-                    </Text>
-                    <Text fontSize="md">compared to last week</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text
-                      fontSize="lg"
-                      color={envivoRequestChange >= 0 ? "green.400" : "red.400"}
-                      mr={2}
-                    >
-                      {envivoRequestChange === "N/A"
-                        ? "N/A"
-                        : `${envivoRequestChange >= 0 ? "+" : ""}${envivoRequestChange}`}
-                    </Text>
-                    <Text fontSize="md">compared to last week</Text>
-                  </>
-                )}
-              </Flex>
-            </Flex>
+            <Text fontSize="2xl" mb={4}>
+              Averages for {selectedPeriod}
+            </Text>
+            <Grid templateColumns="repeat(2, 1fr)" gap={6}>
+              <Box textAlign="center">
+                <Text fontSize="lg" fontWeight="semibold">
+                  Total Requests
+                </Text>
+                <Text fontSize="2xl">
+                  {averageData.totalAvg !== "N/A"
+                    ? averageData.totalAvg.toLocaleString()
+                    : "N/A"}
+                </Text>
+              </Box>
+              <Box textAlign="center">
+                <Text fontSize="lg" fontWeight="semibold">
+                  Envivo Query Requests
+                </Text>
+                <Text fontSize="2xl">
+                  {averageData.envivoAvg !== "N/A"
+                    ? averageData.envivoAvg.toLocaleString()
+                    : "N/A"}
+                </Text>
+              </Box>
+            </Grid>
           </Box>
+
+          {/* Main Data Display */}
+          <Flex
+            direction={{ base: "column", md: "row" }}
+            gap={10}
+            width="100%"
+            maxW="800px"
+            justifyContent="center"
+          >
+            {/* Daily Request Count Box */}
+            <Box
+              bg="rgba(255, 255, 255, 0.1)"
+              borderRadius="md"
+              p={6}
+              boxShadow="lg"
+              flex="1"
+            >
+              <Flex justifyContent="space-between" alignItems="center" mb={4}>
+                <Text fontSize="2xl">Daily Request Count</Text>
+                <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
+                  Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
+                </Button>
+              </Flex>
+              <Flex direction="column" alignItems="center">
+                <Text fontSize="4xl" fontWeight="bold">
+                  {currentTotalRequest !== null ? currentTotalRequest.toLocaleString() : "N/A"}
+                </Text>
+                <Flex alignItems="center" mt={2}>
+                  {comparisonMode === "percentage" ? (
+                    <>
+                      <Text
+                        fontSize="lg"
+                        color={totalPercentageChange >= 0 ? "green.400" : "red.400"}
+                        mr={2}
+                      >
+                        {totalPercentageChange === "N/A" ? "N/A" : `${totalPercentageChange}%`}
+                      </Text>
+                      <Text fontSize="md">compared to last week</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text
+                        fontSize="lg"
+                        color={totalRequestChange >= 0 ? "green.400" : "red.400"}
+                        mr={2}
+                      >
+                        {totalRequestChange === "N/A"
+                          ? "N/A"
+                          : `${totalRequestChange >= 0 ? "+" : ""}${totalRequestChange}`}
+                      </Text>
+                      <Text fontSize="md">compared to last week</Text>
+                    </>
+                  )}
+                </Flex>
+              </Flex>
+            </Box>
+
+            {/* Daily Envivo Query Count Box */}
+            <Box
+              bg="rgba(255, 255, 255, 0.1)"
+              borderRadius="md"
+              p={6}
+              boxShadow="lg"
+              flex="1"
+            >
+              <Flex justifyContent="space-between" alignItems="center" mb={4}>
+                <Text fontSize="2xl">Daily Envivo Query Count</Text>
+                <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
+                  Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
+                </Button>
+              </Flex>
+              <Flex direction="column" alignItems="center">
+                <Text fontSize="4xl" fontWeight="bold">
+                  {currentEnvivoRequest !== null
+                    ? currentEnvivoRequest.toLocaleString()
+                    : "N/A"}
+                </Text>
+                <Flex alignItems="center" mt={2}>
+                  {comparisonMode === "percentage" ? (
+                    <>
+                      <Text
+                        fontSize="lg"
+                        color={envivoPercentageChange >= 0 ? "green.400" : "red.400"}
+                        mr={2}
+                      >
+                        {envivoPercentageChange === "N/A" ? "N/A" : `${envivoPercentageChange}%`}
+                      </Text>
+                      <Text fontSize="md">compared to last week</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text
+                        fontSize="lg"
+                        color={envivoRequestChange >= 0 ? "green.400" : "red.400"}
+                        mr={2}
+                      >
+                        {envivoRequestChange === "N/A"
+                          ? "N/A"
+                          : `${envivoRequestChange >= 0 ? "+" : ""}${envivoRequestChange}`}
+                      </Text>
+                      <Text fontSize="md">compared to last week</Text>
+                    </>
+                  )}
+                </Flex>
+              </Flex>
+            </Box>
+          </Flex>
         </Flex>
       )}
     </Box>

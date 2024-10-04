@@ -29,14 +29,14 @@ const App = () => {
               colorScheme="teal"
               variant="solid"
             >
-              Request Count Graph
+              General Request Count
             </Button>
             <Button
               as={RouterLink}
               to="/table"
               colorScheme="teal"
               variant="solid"
-            >
+            > Individual Request Count
               Data Table
             </Button>
             <Button
