@@ -489,7 +489,6 @@ const DataTable = () => {
 
           <TableContainer
   overflowY="scroll"
-  maxH="400px" // Set max height for better overflow control
   overflowX="hidden" // Prevent horizontal overflow
 >
             <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>

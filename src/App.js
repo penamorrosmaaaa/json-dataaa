@@ -7,17 +7,17 @@ import General from "./General/General";
 const App = () => {
   return (
     <ChakraProvider>
-      <Box
-    p={5}
-    bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
-    minH="100vh" // Set height to fill the viewport as needed
-    color="white"
-    display="flex"
-    flexDirection="column"
-    alignItems="center"
-    overflow="auto"
-    width="100%"
-      >
+      <Flex
+  p={5}
+  bg="linear-gradient(90deg, #000000, #7800ff)"
+  minH="100vh" // Full viewport height to prevent cutoff
+  color="white"
+  direction="column"
+  align="center"
+  width="100%"
+  overflow="hidden" // Removes scrolling and keeps within viewport
+>
+
         {/* General Overview Section */}
         <Box
           width="100%"
