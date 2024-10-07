@@ -488,10 +488,10 @@ const DataTable = () => {
           </Box>
 
           <TableContainer
-            overflowY="scroll"
-            maxH="400px" // Adjust this value based on the approximate height of 10 rows
-            overflowX="hidden" // Prevent horizontal scrolling
-          >
+  overflowY="scroll"
+  maxH="400px" // Set max height for better overflow control
+  overflowX="hidden" // Prevent horizontal overflow
+>
             <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
               <Thead>
                 <Tr>

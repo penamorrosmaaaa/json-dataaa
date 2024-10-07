@@ -31,25 +31,32 @@ const App = () => {
 
         {/* Request Count Graph Section */}
         <Box
-          width="100%"
-          maxW="1600px"
-          borderRadius="md"
-          p={1}
-          mb={-150}
-        >
-          <RequestCountGraph />
-        </Box>
+  width="100%"
+  maxW="1600px"
+  borderRadius="md"
+  p={6}
+  mb={10} // Increased bottom margin to space out components
+  position="relative" 
+  overflow="hidden" // Prevent any overflow from the graph section
+>
+  <RequestCountGraph />
+</Box>
 
         {/* Data Table Section */}
         <Box
-          width="100%"
-          maxW="1500px"
-          borderRadius="md"
-          p={6}
-          mb={0}
-        >
-          <DataTable />
-        </Box>
+  width="100%"
+  maxW="1500px"
+  borderRadius="md"
+  p={6}
+  mb={50}
+  position="relative"
+  maxH="400px" // Set a maximum height to limit DataTable height
+  overflowY="scroll" // Allow vertical scrolling for overflow content
+  zIndex={1} // Ensure DataTable is on top if it overlaps
+>
+  <DataTable />
+</Box>
+
       </Box>
     </ChakraProvider>
   );
