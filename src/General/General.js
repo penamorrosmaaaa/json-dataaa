@@ -9,8 +9,6 @@ import {
   Button,
   Select,
   Grid,
-  FormControl,
-  FormLabel,
 } from "@chakra-ui/react";
 import Papa from "papaparse";
 
@@ -34,7 +32,7 @@ const getStartOfWeek = (date) => {
 const calculatePercentageChange = (current, previous) => {
   if (previous === 0 || previous === null) return "N/A";
   const change = ((current - previous) / previous) * 100;
-  return change.toFixed(2);
+  return change.toFixed(0); // Changed to no decimals
 };
 
 const General = () => {
@@ -44,7 +42,7 @@ const General = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [comparisonMode, setComparisonMode] = useState("percentage"); // 'percentage' or 'raw'
-  const [selectedPeriod, setSelectedPeriod] = useState(PERIODS.ALL_TIME); // Default to All-Time
+  const [selectedPeriod, setSelectedPeriod] = useState(PERIODS.CURRENT_MONTH); // **Default to Current Month**
   const [averageData, setAverageData] = useState({
     totalAvg: "N/A",
     envivoAvg: "N/A",
@@ -146,18 +144,26 @@ const General = () => {
     switch (period) {
       case PERIODS.CURRENT_WEEK:
         const startOfWeek = getStartOfWeek(latestDate);
-        filteredTotal = totalData.filter((d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate);
-        filteredEnvivo = envivoData.filter((d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate);
+        filteredTotal = totalData.filter(
+          (d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate
+        );
+        filteredEnvivo = envivoData.filter(
+          (d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate
+        );
         break;
 
       case PERIODS.CURRENT_MONTH:
         const currentMonth = latestDate.getMonth(); // 0-11
         const currentYear = latestDate.getFullYear();
         filteredTotal = totalData.filter(
-          (d) => new Date(d.date).getMonth() === currentMonth && new Date(d.date).getFullYear() === currentYear
+          (d) =>
+            new Date(d.date).getMonth() === currentMonth &&
+            new Date(d.date).getFullYear() === currentYear
         );
         filteredEnvivo = envivoData.filter(
-          (d) => new Date(d.date).getMonth() === currentMonth && new Date(d.date).getFullYear() === currentYear
+          (d) =>
+            new Date(d.date).getMonth() === currentMonth &&
+            new Date(d.date).getFullYear() === currentYear
         );
         break;
 
@@ -192,8 +198,14 @@ const General = () => {
     const totalSum = filteredTotal.reduce((sum, d) => sum + d.totalRequests, 0);
     const envivoSum = filteredEnvivo.reduce((sum, d) => sum + d.envivoRequests, 0);
 
-    const totalAvg = (totalSum / filteredTotal.length).toFixed(2);
-    const envivoAvg = (envivoSum / filteredEnvivo.length).toFixed(2);
+    const totalAvg = (totalSum / filteredTotal.length).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }); // No decimals
+    const envivoAvg = (envivoSum / filteredEnvivo.length).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }); // No decimals
 
     setAverageData({
       totalAvg,
@@ -236,7 +248,7 @@ const General = () => {
   const totalRequestChange = useMemo(() => {
     if (previousTotalRequest === null) return "N/A";
     const change = currentTotalRequest - previousTotalRequest;
-    return change;
+    return change.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }); // No decimals
   }, [currentTotalRequest, previousTotalRequest]);
 
   const totalPercentageChange = useMemo(() => {
@@ -259,7 +271,7 @@ const General = () => {
   const envivoRequestChange = useMemo(() => {
     if (previousEnvivoRequest === null) return "N/A";
     const change = currentEnvivoRequest - previousEnvivoRequest;
-    return change;
+    return change.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }); // No decimals
   }, [currentEnvivoRequest, previousEnvivoRequest]);
 
   const envivoPercentageChange = useMemo(() => {
@@ -273,22 +285,7 @@ const General = () => {
   };
 
   return (
-    <Box
-      p={5}
-      bg="rgba(0, 0, 0, 0)"
-      minH="100vh"
-      color="white"
-      display="flex"
-      flexDirection="column"
-      alignItems="center"
-      overflow="hidden"
-      width="100%"
-    >
-      {/* Header */}
-      <Text fontSize="3xl" mb={10}>
-        General Overview
-      </Text>
-
+    <>
       {isLoading ? (
         <Flex justifyContent="center" alignItems="center" height="50vh">
           <Spinner size="xl" color="teal.500" />
@@ -302,67 +299,14 @@ const General = () => {
         </Text>
       ) : (
         <Flex
-          direction="column"
-          gap={10}
-          width="100%"
-          maxW="1200px"
-          alignItems="center"
-        >
-          {/* Dropdown for Selecting Period */}
-          <Box w="100%" maxW="400px">
-            <FormControl>
-              <FormLabel>Select Time Period</FormLabel>
-              <Select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                placeholder="Select Period"
-              >
-                {Object.values(PERIODS).map((period) => (
-                  <option key={period} value={period}>
-                    {period}
-                  </option>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-
-          {/* Averages Display */}
-          <Box
-            bg="rgba(255, 255, 255, 0.1)"
-            borderRadius="md"
-            p={6}
-            boxShadow="lg"
-            w="100%"
-            maxW="800px"
-          >
-            <Text fontSize="2xl" mb={4}>
-              Averages for {selectedPeriod}
-            </Text>
-            <Grid templateColumns="repeat(2, 1fr)" gap={6}>
-              <Box textAlign="center">
-                <Text fontSize="lg" fontWeight="semibold">
-                  Total Requests
-                </Text>
-                <Text fontSize="2xl">
-                  {averageData.totalAvg !== "N/A"
-                    ? averageData.totalAvg.toLocaleString()
-                    : "N/A"}
-                </Text>
-              </Box>
-              <Box textAlign="center">
-                <Text fontSize="lg" fontWeight="semibold">
-                  Envivo Query Requests
-                </Text>
-                <Text fontSize="2xl">
-                  {averageData.envivoAvg !== "N/A"
-                    ? averageData.envivoAvg.toLocaleString()
-                    : "N/A"}
-                </Text>
-              </Box>
-            </Grid>
-          </Box>
-
-          {/* Main Data Display */}
+  direction="column"
+  gap={10}
+  width="100%"
+  maxW="1200px"
+  alignItems="center"
+  bg="transparent"  // Explicitly set the background to transparent
+>
+          {/* Main Data Display: Daily Counts */}
           <Flex
             direction={{ base: "column", md: "row" }}
             gap={10}
@@ -372,14 +316,18 @@ const General = () => {
           >
             {/* Daily Request Count Box */}
             <Box
-              bg="rgba(255, 255, 255, 0.1)"
+              bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
               borderRadius="md"
               p={6}
               boxShadow="lg"
               flex="1"
+              borderRadius="20px" // Adjust border-radius as desired
+    border="5px solid" // Adjust border thickness as needed
+    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
             >
               <Flex justifyContent="space-between" alignItems="center" mb={4}>
-                <Text fontSize="2xl">Daily Request Count</Text>
+                <Text fontSize="md">Daily Request Count</Text> {/* Reduced fontSize */}
                 <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
                   Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
                 </Button>
@@ -420,14 +368,18 @@ const General = () => {
 
             {/* Daily Envivo Query Count Box */}
             <Box
-              bg="rgba(255, 255, 255, 0.1)"
+              bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
               borderRadius="md"
               p={6}
               boxShadow="lg"
               flex="1"
+              borderRadius="20px" // Adjust border-radius as desired
+    border="5px solid" // Adjust border thickness as needed
+    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
             >
               <Flex justifyContent="space-between" alignItems="center" mb={4}>
-                <Text fontSize="2xl">Daily Envivo Query Count</Text>
+                <Text fontSize="md">Daily Envivo Query Count</Text> {/* Reduced fontSize */}
                 <Button onClick={toggleComparisonMode} colorScheme="teal" size="sm">
                   Show {comparisonMode === "percentage" ? "Raw" : "Percentage"}
                 </Button>
@@ -468,9 +420,64 @@ const General = () => {
               </Flex>
             </Box>
           </Flex>
+
+          {/* Averages Display */}
+          <Box
+            bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+            borderRadius="md"
+            p={6}
+            boxShadow="lg"
+            w="100%"
+            maxW="800px"
+            borderRadius="20px" // Adjust border-radius as desired
+    border="5px solid" // Adjust border thickness as needed
+    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
+          >
+            <Flex justifyContent="space-between" alignItems="center" mb={4}>
+              <Text fontSize="lg">Averages for {selectedPeriod}</Text> {/* Reduced fontSize */}
+              {/* Select Time Period Dropdown */}
+              <Select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                placeholder="Select"
+                size="sm" // Smaller size
+                width="150px" // Fixed small width
+                aria-label="Select Time Period" // Accessibility
+              >
+                {Object.values(PERIODS).map((period) => (
+                  <option key={period} value={period}>
+                    {period}
+                  </option>
+                ))}
+              </Select>
+            </Flex>
+            <Grid templateColumns="repeat(2, 1fr)" gap={6}>
+              <Box textAlign="center">
+                <Text fontSize="md" fontWeight="semibold"> {/* Reduced fontSize */}
+                  Total Requests
+                </Text>
+                <Text fontSize="2xl">
+                  {averageData.totalAvg !== "N/A"
+                    ? averageData.totalAvg.toLocaleString()
+                    : "N/A"}
+                </Text>
+              </Box>
+              <Box textAlign="center">
+                <Text fontSize="md" fontWeight="semibold"> {/* Reduced fontSize */}
+                  Envivo Query Requests
+                </Text>
+                <Text fontSize="2xl">
+                  {averageData.envivoAvg !== "N/A"
+                    ? averageData.envivoAvg.toLocaleString()
+                    : "N/A"}
+                </Text>
+              </Box>
+            </Grid>
+          </Box>
         </Flex>
       )}
-    </Box>
+    </>
   );
 };
 

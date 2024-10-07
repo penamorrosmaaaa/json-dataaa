@@ -1,66 +1,56 @@
-/* src/App.js */
-
 import React from "react";
-import { ChakraProvider, Box, Flex, Button } from "@chakra-ui/react";
-import { BrowserRouter as Router, Routes, Route, Link as RouterLink, Navigate } from "react-router-dom";
+import { ChakraProvider, Box } from "@chakra-ui/react";
 import RequestCountGraph from "./RequestCountGraph/RequestCountGraph";
 import DataTable from "./DataTable/DataTable";
-import General from "./General/General"; // Import the General component
+import General from "./General/General";
 
 const App = () => {
   return (
     <ChakraProvider>
-      <Router>
+      <Box
+    p={5}
+    bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+    minH="100vh" // Set height to fill the viewport as needed
+    color="white"
+    display="flex"
+    flexDirection="column"
+    alignItems="center"
+    overflow="auto"
+    width="100%"
+      >
+        {/* General Overview Section */}
         <Box
-          p={5}
-          bg="radial-gradient(circle, #000000 0%, #7800ff 100%)"
-          minH="100vh"
-          color="white"
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          overflow="hidden"
+          width="100%"
+          maxW="1200px"
+          borderRadius="md"
+          p={6}
+          mb={0}
         >
-          {/* Navigation Menu */}
-          <Flex mb={10} gap={4}>
-            <Button
-              as={RouterLink}
-              to="/graph"
-              colorScheme="teal"
-              variant="solid"
-            >
-              General Request Count
-            </Button>
-            <Button
-              as={RouterLink}
-              to="/table"
-              colorScheme="teal"
-              variant="solid"
-            > Individual Request Count
-              Data Table
-            </Button>
-            <Button
-              as={RouterLink}
-              to="/general"
-              colorScheme="teal"
-              variant="solid"
-            >
-              General
-            </Button>
-          </Flex>
-
-          {/* Define Routes */}
-          <Routes>
-            {/* Redirect root to /graph */}
-            <Route path="/" element={<Navigate to="/graph" replace />} />
-            <Route path="/graph" element={<RequestCountGraph />} />
-            <Route path="/table" element={<DataTable />} />
-            <Route path="/general" element={<General />} /> {/* New Route */}
-            {/* Fallback route for undefined paths */}
-            <Route path="*" element={<Navigate to="/graph" replace />} />
-          </Routes>
+          <General />
         </Box>
-      </Router>
+
+        {/* Request Count Graph Section */}
+        <Box
+          width="100%"
+          maxW="1600px"
+          borderRadius="md"
+          p={1}
+          mb={-150}
+        >
+          <RequestCountGraph />
+        </Box>
+
+        {/* Data Table Section */}
+        <Box
+          width="100%"
+          maxW="1500px"
+          borderRadius="md"
+          p={6}
+          mb={0}
+        >
+          <DataTable />
+        </Box>
+      </Box>
     </ChakraProvider>
   );
 };
