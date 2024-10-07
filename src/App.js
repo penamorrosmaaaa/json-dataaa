@@ -7,17 +7,17 @@ import General from "./General/General";
 const App = () => {
   return (
     <ChakraProvider>
-      <Flex
-  p={5}
-  bg="linear-gradient(90deg, #000000, #7800ff)"
-  minH="100vh" // Full viewport height to prevent cutoff
-  color="white"
-  direction="column"
-  align="center"
-  width="100%"
-  overflow="hidden" // Removes scrolling and keeps within viewport
->
-
+      <Box
+    p={5}
+    bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+    minH="100vh" // Set height to fill the viewport as needed
+    color="white"
+    display="flex"
+    flexDirection="column"
+    alignItems="center"
+    overflow="auto"
+    width="100%"
+      >
         {/* General Overview Section */}
         <Box
           width="100%"
@@ -49,10 +49,8 @@ const App = () => {
   borderRadius="md"
   p={6}
   mb={50}
-  position="relative"
-  maxH="400px" // Set a maximum height to limit DataTable height
-  overflowY="scroll" // Allow vertical scrolling for overflow content
-  zIndex={1} // Ensure DataTable is on top if it overlaps
+  position="relative" // Added for better layering control
+  zIndex={2} // Set higher stacking order for the data table
 >
   <DataTable />
 </Box>

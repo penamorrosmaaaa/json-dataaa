@@ -453,7 +453,7 @@ const DataTable = () => {
       >
         {/* Table Section */}
         <Box
-          bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+          bg="rgba(255, 255, 255, 0.1)"
           borderRadius="md"
           p={6}
           boxShadow="lg"
@@ -461,10 +461,6 @@ const DataTable = () => {
           mr={{ base: 0, md: 8 }} // Margin right on medium screens and above
           mb={{ base: 8, md: 0 }} // Bottom margin on small screens
           overflow="hidden" // Prevent overflow
-          borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
         >
           {/* Navigation Arrows */}
           <Box display="flex" alignItems="center" mb={4}>
@@ -488,9 +484,10 @@ const DataTable = () => {
           </Box>
 
           <TableContainer
-  overflowY="scroll"
-  overflowX="hidden" // Prevent horizontal overflow
->
+            overflowY="scroll"
+            maxH="400px" // Adjust this value based on the approximate height of 10 rows
+            overflowX="hidden" // Prevent horizontal scrolling
+          >
             <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
               <Thead>
                 <Tr>
@@ -556,16 +553,12 @@ const DataTable = () => {
 
         {/* Detailed Graph Section */}
         <Box
-          bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+          bg="rgba(255, 255, 255, 0.1)"
           borderRadius="md"
           p={6}
           boxShadow="lg"
           flex="1"
           overflow="hidden" // Prevent overflow
-          borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
         >
           <Flex direction="column" alignItems="center" mb={4}>
             <Text fontSize="2xl" mb={4} textAlign="center">
