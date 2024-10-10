@@ -35,20 +35,26 @@ const RequestCountGraph = () => {
   // State for visible range on the x-axis (preset to the most recent 6 months)
   const [visibleRange, setVisibleRange] = useState([sixMonthsAgo, currentDate]);
 
+  // State for y-axis range
+  const [yAxisRange, setYAxisRange] = useState([0, 100]); // Initialize with a default range
+
   // States for day filters
-  const [selectedDay, setSelectedDay] = useState("All");
+  const [selectedDay, setSelectedDay] = useState(""); // Changed from "All" to ""
   const [isComparing, setIsComparing] = useState(false);
   const [compareDay, setCompareDay] = useState(""); // Removed default "All"
 
   // Function to fetch and process CSV data using PapaParse
   const fetchAndProcessCSV = async () => {
     try {
-      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTVHwv5X6-u3M7f8HJNih14hSnVpBlNKFUe_O76bTUJ2PaaOAfrqIrwjWsyc9DNFKxcYoEsWutl1_K6/pub?output=csv"; // **Updated CSV URL**
+      const csvUrl =
+        "https://docs.google.com/spreadsheets/d/e/2PACX-1vTVHwv5X6-u3M7f8HJNih14hSnVpBlNKFUe_O76bTUJ2PaaOAfrqIrwjWsyc9DNFKxcYoEsWutl1_K6/pub?output=csv"; // **Updated CSV URL**
 
       const response = await fetch(csvUrl);
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch CSV data: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch CSV data: ${response.status} ${response.statusText}`
+        );
       }
 
       const csvText = await response.text();
@@ -70,48 +76,57 @@ const RequestCountGraph = () => {
         throw new Error("CSV contains no data.");
       }
 
-      // Aggregate data: sum request counts per date
+      // Aggregate data: sum request counts per date and collect notable events
       const aggregationMap = {};
 
       dataRows.forEach((row, index) => {
-        const dateStr = row["Date"]?.trim(); // **Updated to match CSV header**
-        const requestCountStr = row["Request Count"]?.trim(); // **Updated to match CSV header**
+        const dateStr = row["Date"]?.trim();
+        const requestCountStr = row["Request Count"]?.trim();
+        const notableEvent = row["Notable Events"]?.trim(); // **New: Capture Notable Events**
 
         if (!dateStr || !requestCountStr) {
-          console.warn(`Skipping row ${index + 2} due to missing date or request count.`);
-          return; // Skip rows with missing data
+          console.warn(
+            `Skipping row ${index + 2} due to missing date or request count.`
+          );
+          return;
         }
 
-        // Parse date as local date
-        const [year, month, day] = dateStr.split('-').map(Number);
-        const date = new Date(year, month - 1, day); // Local time
+        const [year, month, day] = dateStr.split("-").map(Number);
+        const date = new Date(year, month - 1, day);
 
         if (isNaN(date.getTime())) {
           console.warn(`Invalid date on row ${index + 2}: ${dateStr}`);
-          return; // Skip rows with invalid dates
+          return;
         }
 
         const requestCount = parseInt(requestCountStr, 10);
 
         if (isNaN(requestCount)) {
-          console.warn(`Invalid request count on row ${index + 2}: ${requestCountStr}`);
-          return; // Skip rows with invalid request counts
+          console.warn(
+            `Invalid request count on row ${index + 2}: ${requestCountStr}`
+          );
+          return;
         }
 
-        const dateKey = date.toISOString().split("T")[0]; // Ensure consistent date format
+        const dateKey = date.toISOString().split("T")[0];
 
         if (!aggregationMap[dateKey]) {
-          aggregationMap[dateKey] = 0;
+          aggregationMap[dateKey] = { totalRequests: 0, events: [] }; // **Initialize with events array**
         }
 
-        aggregationMap[dateKey] += requestCount;
+        aggregationMap[dateKey].totalRequests += requestCount;
+
+        if (notableEvent) {
+          aggregationMap[dateKey].events.push(notableEvent); // **Collect events**
+        }
       });
 
       // Convert aggregation map to array and sort by date ascendingly
       const mappedData = Object.keys(aggregationMap)
         .map((date) => ({
           date,
-          totalRequests: aggregationMap[date],
+          totalRequests: aggregationMap[date].totalRequests,
+          events: aggregationMap[date].events, // **Include events in mapped data**
         }))
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -137,6 +152,237 @@ const RequestCountGraph = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Function to filter data based on selected days
+  const getFilteredData = () => {
+    if (selectedDay === "" && !isComparing) { // Changed from "All" to ""
+      return aggregatedData;
+    }
+
+    const daysMap = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+    };
+
+    let filtered = aggregatedData;
+
+    if (selectedDay !== "") { // Changed from "All"
+      const dayNumber = daysMap[selectedDay];
+      filtered = filtered.filter((d) => {
+        const [year, month, day] = d.date.split("-").map(Number);
+        const date = new Date(year, month - 1, day); // Local time
+        const dayOfWeek = date.getDay();
+        return dayOfWeek === dayNumber;
+      });
+    }
+
+    if (isComparing && compareDay !== "") {
+      const compareDayNumber = daysMap[compareDay];
+      const comparisonData = aggregatedData.filter((d) => {
+        const [year, month, day] = d.date.split("-").map(Number);
+        const date = new Date(year, month - 1, day); // Local time
+        const dayOfWeek = date.getDay();
+        return dayOfWeek === compareDayNumber;
+      });
+      filtered = [...filtered, ...comparisonData];
+    }
+
+    return filtered;
+  };
+
+  const filteredData = useMemo(
+    () => getFilteredData(),
+    [aggregatedData, selectedDay, isComparing, compareDay]
+  );
+
+  // Memo: Calculate Monthly Tick Values and Labels Based on Filtered Data
+  const monthTicks = useMemo(() => {
+    const ticks = [];
+    const labels = [];
+    const seenMonths = new Set();
+
+    filteredData.forEach((d) => {
+      const [year, month, day] = d.date.split("-").map(Number);
+      const date = new Date(year, month - 1, day); // Local time
+      const monthKey = `${date.getMonth()}-${date.getFullYear()}`;
+
+      if (!seenMonths.has(monthKey)) {
+        seenMonths.add(monthKey);
+        const isoDate = date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+        ticks.push(isoDate);
+        labels.push(
+          date.toLocaleString("default", { month: "short", year: "numeric" })
+        );
+      }
+    });
+
+    return { tickVals: ticks, tickTexts: labels };
+  }, [filteredData]);
+
+  // Prepare data traces for Plotly
+  const prepareTraces = () => {
+    const traces = [];
+
+    if (isComparing && compareDay !== "" && selectedDay !== "") { // Changed from "All" to ""
+      const daysMap = {
+        Sunday: 0,
+        Monday: 1,
+        Tuesday: 2,
+        Wednesday: 3,
+        Thursday: 4,
+        Friday: 5,
+        Saturday: 6,
+      };
+
+      const primaryData = aggregatedData.filter((d) => {
+        const [year, month, day] = d.date.split("-").map(Number);
+        const date = new Date(year, month - 1, day); // Local time
+        const dayOfWeek = date.getDay();
+        return dayOfWeek === daysMap[selectedDay];
+      });
+
+      const comparisonData = aggregatedData.filter((d) => {
+        const [year, month, day] = d.date.split("-").map(Number);
+        const date = new Date(year, month - 1, day); // Local time
+        const dayOfWeek = date.getDay();
+        return dayOfWeek === daysMap[compareDay];
+      });
+
+      // Create maps for easy lookup
+      const primaryMap = new Map(
+        primaryData.map((d) => [d.date, d.totalRequests])
+      );
+      const comparisonMap = new Map(
+        comparisonData.map((d) => [d.date, d.totalRequests])
+      );
+
+      // Create a sorted list of all unique dates from both datasets
+      const allDatesSet = new Set([...primaryMap.keys(), ...comparisonMap.keys()]);
+      const allDates = Array.from(allDatesSet).sort(
+        (a, b) => new Date(a) - new Date(b)
+      );
+
+      // Create y-values aligned to allDates
+      const primaryY = allDates.map((date) => primaryMap.get(date) || 0);
+      const comparisonY = allDates.map((date) => comparisonMap.get(date) || 0);
+
+      // Customdata for events
+      const primaryEvents = primaryData.map((d) =>
+        d.events.length > 0 ? d.events.join("<br>") : ""
+      );
+      const comparisonEvents = comparisonData.map((d) =>
+        d.events.length > 0 ? d.events.join("<br>") : ""
+      );
+
+      traces.push(
+        {
+          x: allDates,
+          y: primaryY,
+          type: "bar",
+          name: selectedDay === "" ? "All Days" : selectedDay, // Updated name
+          marker: {
+            color: "#0074D9",
+            line: {
+              color: "#ffffff",
+              width: 0.5,
+            },
+          },
+          customdata: primaryEvents,
+          hovertemplate:
+            "%{x|%d-%b-%Y}<br>Total Requests: %{y}<br>" +
+            "Events:<br>%{customdata}<extra></extra>",
+        },
+        {
+          x: allDates,
+          y: comparisonY,
+          type: "bar",
+          name: compareDay,
+          marker: {
+            color: "#FF851B",
+            line: {
+              color: "#ffffff",
+              width: 0.5,
+            },
+          },
+          customdata: comparisonEvents,
+          hovertemplate:
+            "%{x|%d-%b-%Y}<br>Total Requests: %{y}<br>" +
+            "Events:<br>%{customdata}<extra></extra>",
+        }
+      );
+
+      // Add scatter trace for Notable Events (Yellow Circles)
+      const eventData = [...primaryData, ...comparisonData].filter(
+        (d) => d.events.length > 0
+      );
+
+      if (eventData.length > 0) {
+        const eventDates = eventData.map((d) => d.date);
+        const eventY = eventData.map((d) => d.totalRequests);
+        const eventHoverTexts = eventData.map((d) => d.events.join("<br>"));
+
+        traces.push({
+          x: eventDates,
+          y: eventY,
+          type: "scatter",
+          mode: "markers",
+          name: "Notable Events",
+          marker: {
+            symbol: "circle",
+            size: 10, // Fixed size to prevent excessive scaling
+            color: "yellow",
+            line: {
+              color: "black",
+              width: 1,
+            },
+          },
+          hoverinfo: "text",
+          hovertext: eventHoverTexts,
+        });
+      }
+    } else {
+      // Single trace
+      traces.push({
+        x: filteredData.map((d) => d.date),
+        y: filteredData.map((d) => d.totalRequests),
+        type: "bar",
+        marker: {
+          color:
+            selectedDay === ""
+              ? filteredData.map((d) => {
+                  const [year, month, day] = d.date.split("-").map(Number);
+                  const date = new Date(year, month - 1, day);
+                  const dayOfWeek = date.getDay();
+                  return dayOfWeek === 0 ? "#FF4136" : "#0074D9"; // **Red for Sundays, Blue otherwise**
+                })
+              : "#0074D9",
+          line: {
+            color: "#ffffff",
+            width: 0.5,
+          },
+        },
+        customdata: filteredData.map((d) =>
+          d.events.length > 0 ? d.events.join("<br>") : ""
+        ),
+        hovertemplate:
+          "%{x|%d-%b-%Y}<br>Total Requests: %{y}<br>" +
+          "Events:<br>%{customdata}<extra></extra>",
+        name: selectedDay === "" ? "All Days" : "Total Requests", // Updated name
+      });
+    }
+
+    return traces;
+  };
+
+  const traces = useMemo(
+    () => prepareTraces(),
+    [filteredData, isComparing, compareDay, selectedDay, aggregatedData]
+  );
+
   // Handler for relayout events (e.g., range slider)
   const handleRelayout = (event) => {
     console.log("Relayout Event:", event);
@@ -152,10 +398,50 @@ const RequestCountGraph = () => {
     if (newStart && newEnd) {
       console.log("Updating Visible Range:", [newStart, newEnd]);
       setVisibleRange([newStart, newEnd]);
+
+      // Convert string dates to Date objects
+      const startDate = new Date(newStart);
+      const endDate = new Date(newEnd);
+
+      // Filter the data within the new visible range
+      const visibleData = filteredData.filter((d) => {
+        const date = new Date(d.date);
+        return date >= startDate && date <= endDate;
+      });
+
+      // Find the maximum y-value in the visible data
+      const maxY = Math.max(...visibleData.map((d) => d.totalRequests), 0);
+
+      // Set the y-axis range with a 10% buffer
+      const newYRange = [0, maxY > 0 ? maxY * 1.1 : 100];
+      console.log("Calculated Y-Axis Range:", newYRange);
+      setYAxisRange(newYRange);
     }
   };
 
-  // Determine the title based on the visible range and comparison
+  // Effect to Update Y-Axis Range When Data or Visible Range Changes
+  useEffect(() => {
+    if (filteredData.length === 0) {
+      setYAxisRange([0, 100]);
+      return;
+    }
+
+    const [startStr, endStr] = visibleRange;
+    const startDate = new Date(startStr);
+    const endDate = new Date(endStr);
+
+    const visibleData = filteredData.filter((d) => {
+      const date = new Date(d.date);
+      return date >= startDate && date <= endDate;
+    });
+
+    const maxRequest = Math.max(...visibleData.map((d) => d.totalRequests), 0);
+    const calculatedRange = maxRequest > 0 ? [0, maxRequest * 1.1] : [0, 100];
+    console.log("Calculated Y-Axis Range from useEffect:", calculatedRange);
+    setYAxisRange(calculatedRange);
+  }, [visibleRange, filteredData]);
+
+  // Function to determine the title based on the visible range and comparison
   const getTitle = () => {
     if (!visibleRange) return "Request Count Over Time";
     const [start, end] = visibleRange;
@@ -176,7 +462,7 @@ const RequestCountGraph = () => {
     return title;
   };
 
-  // Handler for primary dropdown selection
+  // Handlers for dropdowns and buttons
   const handleDayChange = (e) => {
     setSelectedDay(e.target.value);
     // Reset compare selection when primary selection changes
@@ -185,223 +471,17 @@ const RequestCountGraph = () => {
     }
   };
 
-  // Handler for compare dropdown selection
   const handleCompareDayChange = (e) => {
     setCompareDay(e.target.value);
     setVisibleRange([sixMonthsAgo, currentDate]);
   };
 
-  // Handler for Compare button toggle
   const toggleCompare = () => {
     setIsComparing(!isComparing);
     // Reset compareDay when disabling compare mode
     if (isComparing) {
       setCompareDay("");
     }
-  };
-
-  // Function to filter data based on selected days
-  const getFilteredData = () => {
-    if (selectedDay === "All" && !isComparing) {
-      return aggregatedData;
-    }
-
-    const daysMap = {
-      Sunday: 0,
-      Monday: 1,
-      Tuesday: 2,
-      Wednesday: 3,
-      Thursday: 4,
-      Friday: 5,
-      Saturday: 6,
-    };
-
-    let filtered = aggregatedData;
-
-    if (selectedDay !== "All") {
-      const dayNumber = daysMap[selectedDay];
-      filtered = filtered.filter((d) => {
-        const [year, month, day] = d.date.split('-').map(Number);
-        const date = new Date(year, month - 1, day); // Local time
-        const dayOfWeek = date.getDay();
-        return dayOfWeek === dayNumber;
-      });
-    }
-
-    if (isComparing && compareDay !== "") {
-      const compareDayNumber = daysMap[compareDay];
-      const comparisonData = aggregatedData.filter((d) => {
-        const [year, month, day] = d.date.split('-').map(Number);
-        const date = new Date(year, month - 1, day); // Local time
-        const dayOfWeek = date.getDay();
-        return dayOfWeek === compareDayNumber;
-      });
-      filtered = [...filtered, ...comparisonData];
-    }
-
-    return filtered;
-  };
-
-  const filteredData = getFilteredData();
-
-  // Prepare data traces for Plotly
-  const prepareTraces = () => {
-    const traces = [];
-
-    if (isComparing && compareDay !== "" && selectedDay !== "All") {
-      const daysMap = {
-        Sunday: 0,
-        Monday: 1,
-        Tuesday: 2,
-        Wednesday: 3,
-        Thursday: 4,
-        Friday: 5,
-        Saturday: 6,
-      };
-
-      const primaryData = aggregatedData.filter(
-        (d) => {
-          const [year, month, day] = d.date.split('-').map(Number);
-          const date = new Date(year, month - 1, day); // Local time
-          const dayOfWeek = date.getDay();
-          return dayOfWeek === daysMap[selectedDay];
-        }
-      );
-
-      const comparisonData = aggregatedData.filter(
-        (d) => {
-          const [year, month, day] = d.date.split('-').map(Number);
-          const date = new Date(year, month - 1, day); // Local time
-          const dayOfWeek = date.getDay();
-          return dayOfWeek === daysMap[compareDay];
-        }
-      );
-
-      // Create maps for easy lookup
-      const primaryMap = new Map(primaryData.map((d) => [d.date, d.totalRequests]));
-      const comparisonMap = new Map(comparisonData.map((d) => [d.date, d.totalRequests]));
-
-      // Create a sorted list of all unique dates from both datasets
-      const allDatesSet = new Set([...primaryMap.keys(), ...comparisonMap.keys()]);
-      const allDates = Array.from(allDatesSet).sort((a, b) => new Date(a) - new Date(b));
-
-      // Create y-values aligned to allDates
-      const primaryY = allDates.map((date) => primaryMap.get(date) || 0);
-      const comparisonY = allDates.map((date) => comparisonMap.get(date) || 0);
-
-      traces.push(
-        {
-          x: allDates,
-          y: primaryY,
-          type: "bar",
-          name: selectedDay,
-          marker: {
-            color: "#0074D9",
-            line: {
-              color: "#ffffff",
-              width: 0.5,
-            },
-          },
-          hovertemplate:
-            "%{x|%d-%b-%Y}<br>Total Requests: %{y}<extra></extra>", // Adjusted date format
-        },
-        {
-          x: allDates,
-          y: comparisonY,
-          type: "bar",
-          name: compareDay,
-          marker: {
-            color: "#FF851B",
-            line: {
-              color: "#ffffff",
-              width: 0.5,
-            },
-          },
-          hovertemplate:
-            "%{x|%d-%b-%Y}<br>Total Requests: %{y}<extra></extra>", // Adjusted date format
-        }
-      );
-    } else {
-      // Single trace
-      traces.push({
-        x: filteredData.map((d) => d.date),
-        y: filteredData.map((d) => d.totalRequests),
-        type: "bar",
-        marker: {
-          color:
-            selectedDay === "All"
-              ? filteredData.map((d) => {
-                  const [year, month, day] = d.date.split('-').map(Number);
-                  const date = new Date(year, month - 1, day); // Local time
-                  const dayOfWeek = date.getDay();
-                  return dayOfWeek === 0 ? "#FF4136" : "#0074D9"; // **Red for Sundays, Blue otherwise**
-                })
-              : "#0074D9",
-          line: {
-            color: "#ffffff",
-            width: 0.5,
-          },
-        },
-        hovertemplate:
-          "%{x|%d-%b-%Y}<br>Total Requests: %{y}<extra></extra>", // Adjusted date format
-        name: "Total Requests",
-      });
-    }
-
-    return traces;
-  };
-
-  const traces = prepareTraces();
-
-  // **Memo: Calculate Monthly Tick Values and Labels Based on Filtered Data**
-  const monthTicks = useMemo(() => {
-    const ticks = [];
-    const labels = [];
-    const seenMonths = new Set();
-
-    filteredData.forEach((d) => {
-      const [year, month, day] = d.date.split('-').map(Number);
-      const date = new Date(year, month - 1, day); // Local time
-      const monthKey = `${date.getMonth()}-${date.getFullYear()}`;
-
-      if (!seenMonths.has(monthKey)) {
-        seenMonths.add(monthKey);
-        const isoDate = date.toISOString().split('T')[0]; // "YYYY-MM-DD"
-        ticks.push(isoDate);
-        labels.push(date.toLocaleString("default", { month: "short", year: "numeric" }));
-      }
-    });
-
-    return { tickVals: ticks, tickTexts: labels };
-  }, [filteredData]);
-
-  // **Memo: Calculate Y-Axis Range Based on Visible Data**
-  const yAxisRange = useMemo(() => {
-    const [startStr, endStr] = visibleRange;
-    const [startYear, startMonth, startDay] = startStr.split('-').map(Number);
-    const [endYear, endMonth, endDay] = endStr.split('-').map(Number);
-    const start = new Date(startYear, startMonth - 1, startDay); // Local time
-    const end = new Date(endYear, endMonth - 1, endDay); // Local time
-    console.log("Visible Range (Date Objects):", start, end);
-    const visibleData = filteredData.filter((d) => {
-      const [year, month, day] = d.date.split('-').map(Number);
-      const date = new Date(year, month - 1, day); // Local time
-      return date >= start && date <= end;
-    });
-    console.log("Visible Data Count:", visibleData.length);
-    if (visibleData.length === 0) {
-      console.warn("No data visible in the current range. Setting default Y-Axis Range.");
-      return [0, 400000000]; // Default range if no data is visible
-    }
-    const maxRequest = Math.max(...visibleData.map((d) => d.totalRequests), 0);
-    const calculatedRange = maxRequest > 0 ? [0, maxRequest * 1.1] : [0, 100];
-    console.log("Calculated Y-Axis Range:", calculatedRange);
-    return calculatedRange; // 10% buffer
-  }, [visibleRange, filteredData]);
-
-  // **Refresh Data Function (Already exists, kept for completeness)**
-  const refreshData = () => {
-    loadData();
   };
 
   return (
@@ -413,28 +493,20 @@ const RequestCountGraph = () => {
       flexDirection="column"
       alignItems="center"
       overflow="hidden"
-      // **Removed the background property to revert to original background**
     >
-      <Flex
-        direction="column"
-        width={{ base: "100%", md: "90%" }}
-        maxW="1200px"
-      >
+      <Flex direction="column" width={{ base: "100%", md: "90%" }} maxW="1200px">
         {/* Integrated Controls and Main Chart Section */}
         <Box
-          // **Removed the background property to revert to original background format**
           bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
-          borderRadius="md"
+          borderRadius="20px" // Adjust border-radius as desired
           p={4} // **Preserved original padding**
-          boxShadow="lg" // **Preserved original shadow**
+          boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
           width="100%"
           display="flex"
           flexDirection="column"
           gap={6} // **Space between controls and chart**
-          borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
+          border="5px solid" // Adjust border thickness as needed
+          borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
         >
           {/* Controls */}
           <Flex
@@ -448,14 +520,14 @@ const RequestCountGraph = () => {
                 Select Day:
               </Text>
               <Select
-                placeholder="All Days"
+                placeholder="All Days" // Changed from "All Days" to "Select Day"
                 value={selectedDay}
                 onChange={handleDayChange}
                 maxW="200px"
                 bg="white"
                 color="black"
               >
-                <option value="All">All Days</option>
+                {/* Removed the "All Days" option */}
                 <option value="Monday">Monday</option>
                 <option value="Tuesday">Tuesday</option>
                 <option value="Wednesday">Wednesday</option>
@@ -470,8 +542,12 @@ const RequestCountGraph = () => {
             <Flex alignItems="center">
               <Button
                 onClick={toggleCompare}
-                colorScheme={isComparing ? "teal" : "gray"}
+                colorScheme={isComparing ? "green" : "blue"} // **Changed colorScheme for better visibility**
                 variant={isComparing ? "solid" : "outline"}
+                bg={isComparing ? "green.400" : "blue.200"} // **Added explicit bg for better contrast**
+                _hover={{
+                  bg: isComparing ? "green.500" : "blue.300",
+                }}
               >
                 {isComparing ? "Cancel Compare" : "Compare"}
               </Button>
@@ -502,17 +578,6 @@ const RequestCountGraph = () => {
                 </Select>
               </Flex>
             )}
-
-            {/* **Refresh Button** */}
-            <Flex alignItems="center">
-              <Button
-                onClick={refreshData}
-                colorScheme="blue"
-                variant="solid"
-              >
-                Refresh Data
-              </Button>
-            </Flex>
           </Flex>
 
           {/* Main Chart */}
@@ -521,19 +586,9 @@ const RequestCountGraph = () => {
               <Text fontSize="2xl" textAlign="center">
                 {isLoading || error ? "Request Count Over Time" : getTitle()}
               </Text>
-              {/* **Optional: Display Last Updated Time** */}
-              {!isLoading && !error && (
-                <Text fontSize="sm" color="gray.300">
-                  Last Updated: {new Date().toLocaleString()}
-                </Text>
-              )}
             </Flex>
             {isLoading ? (
-              <Flex
-                justifyContent="center"
-                alignItems="center"
-                height="600px"
-              >
+              <Flex justifyContent="center" alignItems="center" height="600px">
                 <Spinner size="xl" color="white" />
               </Flex>
             ) : error ? (
@@ -566,21 +621,29 @@ const RequestCountGraph = () => {
                     rangeslider: {
                       visible: true,
                       thickness: 0.15, // Thickness of the slider
-                      range: aggregatedData.length > 0
-                        ? [
-                            aggregatedData[0].date,
-                            aggregatedData[aggregatedData.length - 1].date,
-                          ]
-                        : [sixMonthsAgo, currentDate], // Full data range
+                      range:
+                        aggregatedData.length > 0
+                          ? [
+                              aggregatedData[0].date,
+                              aggregatedData[aggregatedData.length - 1].date,
+                            ]
+                          : [sixMonthsAgo, currentDate], // Full data range
                       tickformat: "%b %Y", // Adjusted to match month-year format
                     },
                     rangeselector: {
                       visible: false, // Hide range selector buttons
                     },
                     // **Apply Monthly Ticks Based on Filtered Data**
-                    tickmode: monthTicks.tickVals.length > 0 ? "array" : "auto",
-                    tickvals: monthTicks.tickVals.length > 0 ? monthTicks.tickVals : undefined,
-                    ticktext: monthTicks.tickTexts.length > 0 ? monthTicks.tickTexts : undefined,
+                    tickmode:
+                      monthTicks.tickVals.length > 0 ? "array" : "auto",
+                    tickvals:
+                      monthTicks.tickVals.length > 0
+                        ? monthTicks.tickVals
+                        : undefined,
+                    ticktext:
+                      monthTicks.tickTexts.length > 0
+                        ? monthTicks.tickTexts
+                        : undefined,
                   },
                   yaxis: {
                     title: "Total Requests",
@@ -603,6 +666,7 @@ const RequestCountGraph = () => {
                   },
                   // **Set Barmode to Group**
                   barmode: "group",
+                  hovermode: "closest", // **Ensure hover mode is set to closest**
                 }}
                 config={{
                   displayModeBar: true,

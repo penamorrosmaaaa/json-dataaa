@@ -1,5 +1,4 @@
 /* src/components/DataTable/DataTable.js */
-
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
@@ -9,7 +8,6 @@ import {
   Tr,
   Th,
   Td,
-  Tfoot,
   TableContainer,
   Text,
   Flex,
@@ -20,8 +18,10 @@ import {
   Spinner,
   IconButton,
   Button,
+  Input, // Import Input for date picker
+  Icon, // Import Icon for calendar icon
 } from "@chakra-ui/react";
-import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
+import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon } from "@chakra-ui/icons"; // Import CalendarIcon
 import Plot from "react-plotly.js";
 import Papa from "papaparse"; // Import PapaParse
 
@@ -57,17 +57,17 @@ const DataTable = () => {
   const [selectedRow, setSelectedRow] = useState(null);
 
   // State for day of week selection
-  const [selectedDay, setSelectedDay] = useState("All");
+  const [selectedDay, setSelectedDay] = useState(""); // Changed from "All" to ""
 
   // State for comparison mode
   const [isComparing, setIsComparing] = useState(false);
-  const [compareDay, setCompareDay] = useState("");
+  const [compareDay, setCompareDay] = useState(""); // Removed default "All"
 
   // Function to handle row click
   const handleRowClick = (row) => {
     setSelectedRow(row);
     // Reset day selection and comparison when a new row is selected
-    setSelectedDay("All");
+    setSelectedDay("");
     setIsComparing(false);
     setCompareDay("");
   };
@@ -295,7 +295,7 @@ const DataTable = () => {
 
   // Function to filter historic data based on selected day and comparison
   const getFilteredData = () => {
-    if (selectedDay === "All" && !isComparing) {
+    if (selectedDay === "" && !isComparing) { // Changed from "All" to ""
       return { primary: historicData, comparison: [] };
     }
 
@@ -311,7 +311,7 @@ const DataTable = () => {
 
     let primary = historicData;
 
-    if (selectedDay !== "All") {
+    if (selectedDay !== "") { // Changed from "All"
       const dayNumber = daysMap[selectedDay];
       primary = historicData.filter((d) => d.dayOfWeek === dayNumber);
     }
@@ -337,7 +337,7 @@ const DataTable = () => {
       y: filteredData.primary.map((d) => d.y),
       type: "scatter",
       mode: "lines+markers",
-      name: selectedDay === "All" ? "All Days" : selectedDay,
+      name: selectedDay === "" ? "All Days" : selectedDay, // Updated name
       line: {
         color: "green", // Line color remains green
         width: 2,
@@ -387,7 +387,7 @@ const DataTable = () => {
     if (!selectedRow) return "Select a Row to View Details";
 
     let title = `Request Count Over Time (${currentDate})`;
-    if (selectedDay !== "All") {
+    if (selectedDay !== "") { // Changed from "All"
       title += ` (${selectedDay})`;
     }
 
@@ -397,6 +397,33 @@ const DataTable = () => {
 
     return title;
   };
+
+  // Function to handle date change from date picker
+  const handleDateChange = (e) => {
+    const selectedDate = e.target.value;
+    if (sortedDates.includes(selectedDate)) {
+      setCurrentDate(selectedDate);
+    } else {
+      alert("Selected date does not have available data.");
+    }
+  };
+
+  // Function to format date to YYYY-MM-DD
+  const formatDate = (date) => {
+    const d = new Date(date);
+    const month = (`0${d.getMonth() + 1}`).slice(-2); // Months are zero indexed
+    const day = (`0${d.getDate()}`).slice(-2);
+    const year = d.getFullYear();
+    return `${year}-${month}-${day}`;
+  };
+
+  // Calculate three weeks ago from currentDate
+  const threeWeeksAgo = useMemo(() => {
+    if (!currentDate) return null;
+    const date = new Date(currentDate);
+    date.setDate(date.getDate() - 21); // 21 days = 3 weeks
+    return formatDate(date);
+  }, [currentDate]);
 
   // Loading State
   if (loading) {
@@ -453,8 +480,10 @@ const DataTable = () => {
       >
         {/* Table Section */}
         <Box
-          bg="rgba(255, 255, 255, 0.1)"
-          borderRadius="md"
+          bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+          border="5px solid" // Adjust border thickness as needed
+          borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+          borderRadius="20px"
           p={6}
           boxShadow="lg"
           flex="1"
@@ -462,8 +491,8 @@ const DataTable = () => {
           mb={{ base: 8, md: 0 }} // Bottom margin on small screens
           overflow="hidden" // Prevent overflow
         >
-          {/* Navigation Arrows */}
-          <Box display="flex" alignItems="center" mb={4}>
+          {/* Navigation Arrows and Date Selection */}
+          <Flex alignItems="center" mb={4}>
             <IconButton
               icon={<ChevronLeftIcon />}
               onClick={goToPreviousDate}
@@ -471,9 +500,23 @@ const DataTable = () => {
               aria-label="Previous Date"
               mr={2}
             />
-            <Text fontSize="md">
-              {currentDate ? `Viewing Data for: ${currentDate}` : "No Date Selected"}
+            <Text fontSize="md" mr={2}>
+              Viewing Data for:
             </Text>
+            {/* Calendar Input for Date Selection */}
+            <Flex alignItems="center">
+              <Input
+                type="date"
+                value={currentDate || ""}
+                onChange={handleDateChange}
+                max={mostRecentDate} // Prevent selecting future dates
+                bg="white"
+                color="black"
+                size="sm"
+                mr={2}
+              />
+            
+            </Flex>
             <IconButton
               icon={<ChevronRightIcon />}
               onClick={goToNextDate}
@@ -481,11 +524,12 @@ const DataTable = () => {
               aria-label="Next Date"
               ml={2}
             />
-          </Box>
+          </Flex>
 
+          {/* Table Component */}
           <TableContainer
             overflowY="scroll"
-            maxH="400px" // Adjust this value based on the approximate height of 10 rows
+            maxH="600px" // Adjust this value based on the approximate height of 10 rows
             overflowX="hidden" // Prevent horizontal scrolling
           >
             <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
@@ -497,11 +541,12 @@ const DataTable = () => {
                     whiteSpace="nowrap"
                     overflow="hidden"
                     textOverflow="ellipsis"
+                    color="white" // Make label white
                   >
                     Object
                   </Th>
-                  <Th isNumeric>Percentage</Th>
-                  <Th isNumeric>Amount</Th>
+                  <Th isNumeric color="white">Percentage (%)</Th> {/* Include % symbol */}
+                  <Th isNumeric color="white">Amount</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -532,29 +577,17 @@ const DataTable = () => {
                   );
                 })}
               </Tbody>
-              <Tfoot>
-                <Tr>
-                  <Th
-                    maxW="200px"
-                    isTruncated
-                    whiteSpace="nowrap"
-                    overflow="hidden"
-                    textOverflow="ellipsis"
-                  >
-                    Object
-                  </Th>
-                  <Th isNumeric>Percentage</Th>
-                  <Th isNumeric>Amount</Th>
-                </Tr>
-              </Tfoot>
+              {/* Removed Tfoot to eliminate bottom labels */}
             </Table>
           </TableContainer>
         </Box>
 
         {/* Detailed Graph Section */}
         <Box
-          bg="rgba(255, 255, 255, 0.1)"
-          borderRadius="md"
+          bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
+          border="5px solid" // Adjust border thickness as needed
+          borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+          borderRadius="20px"
           p={6}
           boxShadow="lg"
           flex="1"
@@ -578,9 +611,11 @@ const DataTable = () => {
                   <Select
                     value={selectedDay}
                     onChange={(e) => setSelectedDay(e.target.value)}
-                    placeholder="All Days"
+                    placeholder="All Days" // Changed from "All Days" to "Select Day"
+                    bg="white"
+                    color="black"
                   >
-                    <option value="All">All Days</option>
+                    {/* Removed the "All Days" option */}
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -598,10 +633,13 @@ const DataTable = () => {
                     <Select
                       value={compareDay}
                       onChange={(e) => setCompareDay(e.target.value)}
-                      placeholder="Compare with..."
+                      placeholder="All days" // Changed from "Compare with..." to "Select Day"
                       isDisabled={!isComparing}
                       maxW="200px"
+                      bg="white"
+                      color="black"
                     >
+                      {/* Removed the "All Days" option here */}
                       <option value="Monday">Monday</option>
                       <option value="Tuesday">Tuesday</option>
                       <option value="Wednesday">Wednesday</option>
@@ -613,8 +651,13 @@ const DataTable = () => {
                     <Box ml={2}>
                       <Button
                         onClick={() => setIsComparing(!isComparing)}
-                        colorScheme={isComparing ? "teal" : "gray"}
-                        variant={isComparing ? "solid" : "outline"}
+                        colorScheme={isComparing ? "teal" : "blue"} // Changed to 'blue' for better visibility
+                        variant={isComparing ? "solid" : "outline"} // Changed variant for better visibility
+                        bg={isComparing ? "teal.400" : "blue.200"} // Added explicit bg for better contrast
+                        _hover={{
+                          bg: isComparing ? "teal.500" : "blue.300",
+                        }}
+                        size="sm"
                       >
                         {isComparing ? "Cancel Compare" : "Compare"}
                       </Button>
@@ -642,8 +685,9 @@ const DataTable = () => {
                     tickfont: { color: "white" },
                     tickangle: -45,
                     automargin: true,
-                    tickformat: "%b %Y", // Format to show month and year
-                    dtick: "M1", // Set tick interval to monthly
+                    tickformat: "%b %d, %Y", // Format to show month, day, year
+                    // **Preset the timeline to last 3 weeks**
+                    range: threeWeeksAgo ? [threeWeeksAgo, currentDate] : undefined,
                     rangeslider: { visible: true }, // Enable range slider
                   },
                   yaxis: {
@@ -651,7 +695,7 @@ const DataTable = () => {
                     showgrid: true,
                     gridcolor: "#444",
                     tickfont: { color: "white" },
-                    autorange: true, // Enable dynamic scaling
+                    autorange: true, // Ensure y-axis adjusts dynamically
                   },
                   font: {
                     color: "white",

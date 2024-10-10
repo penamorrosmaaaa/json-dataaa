@@ -1,61 +1,70 @@
+/* src/App.js */
+
 import React from "react";
 import { ChakraProvider, Box } from "@chakra-ui/react";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import RequestCountGraph from "./RequestCountGraph/RequestCountGraph";
 import DataTable from "./DataTable/DataTable";
 import General from "./General/General";
+import NewPage from "./NewPage/NewPage"; // Import the new page component
 
 const App = () => {
   return (
     <ChakraProvider>
-      <Box
-    p={5}
-    bg="linear-gradient(90deg, #000000, #7800ff)" // Changed to linear gradient
-    minH="100vh" // Set height to fill the viewport as needed
-    color="white"
-    display="flex"
-    flexDirection="column"
-    alignItems="center"
-    overflow="auto"
-    width="100%"
-      >
-        {/* General Overview Section */}
+      <Router>
         <Box
+          p={5}
+          bg="linear-gradient(90deg, #000000, #7800ff)"
+          minH="100vh"
+          color="white"
+          display="flex"
+          flexDirection="column"
+          alignItems="center"
+          overflow="auto"
           width="100%"
-          maxW="1200px"
-          borderRadius="md"
-          p={6}
-          mb={0}
         >
-          <General />
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <>
+                  {/* General Overview Section */}
+                  <Box width="100%" maxW="1200px" borderRadius="md" p={6} mb={0}>
+                    <General />
+                  </Box>
+
+                  {/* Request Count Graph Section */}
+                  <Box
+                    width="100%"
+                    maxW="1600px"
+                    borderRadius="md"
+                    p={6}
+                    mb={10}
+                    position="relative"
+                    overflow="hidden"
+                  >
+                    <RequestCountGraph />
+                  </Box>
+
+                  {/* Data Table Section */}
+                  <Box
+                    width="100%"
+                    maxW="1500px"
+                    borderRadius="md"
+                    p={6}
+                    mb={50}
+                    position="relative"
+                    zIndex={2}
+                  >
+                    <DataTable />
+                  </Box>
+                </>
+              }
+            />
+            <Route path="/new-page" element={<NewPage />} /> {/* Add the new page route */}
+          </Routes>
         </Box>
-
-        {/* Request Count Graph Section */}
-        <Box
-  width="100%"
-  maxW="1600px"
-  borderRadius="md"
-  p={6}
-  mb={10} // Increased bottom margin to space out components
-  position="relative" 
-  overflow="hidden" // Prevent any overflow from the graph section
->
-  <RequestCountGraph />
-</Box>
-
-        {/* Data Table Section */}
-        <Box
-  width="100%"
-  maxW="1500px"
-  borderRadius="md"
-  p={6}
-  mb={50}
-  position="relative" // Added for better layering control
-  zIndex={2} // Set higher stacking order for the data table
->
-  <DataTable />
-</Box>
-
-      </Box>
+      </Router>
     </ChakraProvider>
   );
 };

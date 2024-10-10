@@ -28,7 +28,21 @@ const getStartOfWeek = (date) => {
   return new Date(d.setDate(diff));
 };
 
-// **Utility function to calculate percentage change**
+// Helper function to get the end of the week (Sunday)
+const getEndOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+  const diff = day === 0 ? 0 : 7 - day;
+  return new Date(d.setDate(d.getDate() + diff));
+};
+
+// Helper function to parse dates as local dates
+const parseLocalDate = (dateStr) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day); // Months are 0-indexed
+};
+
+// Utility function to calculate percentage change
 const calculatePercentageChange = (current, previous) => {
   if (previous === 0 || previous === null) return "N/A";
   const change = ((current - previous) / previous) * 100;
@@ -97,7 +111,7 @@ const General = () => {
 
           // Convert maps to sorted arrays
           const sortedDates = Object.keys(totalRequestsMap).sort(
-            (a, b) => new Date(a) - new Date(b)
+            (a, b) => parseLocalDate(a) - parseLocalDate(b)
           );
 
           const totalRequestsData = sortedDates.map((date) => ({
@@ -136,7 +150,10 @@ const General = () => {
     if (totalData.length === 0) return { filteredTotal: [], filteredEnvivo: [] };
 
     const latestDateStr = totalData[totalData.length - 1].date;
-    const latestDate = new Date(latestDateStr);
+    const latestDate = parseLocalDate(latestDateStr);
+
+    console.log(`Selected Period: ${period}`);
+    console.log(`Latest Date: ${latestDate.toISOString().split('T')[0]}`);
 
     let filteredTotal = [];
     let filteredEnvivo = [];
@@ -144,12 +161,17 @@ const General = () => {
     switch (period) {
       case PERIODS.CURRENT_WEEK:
         const startOfWeek = getStartOfWeek(latestDate);
-        filteredTotal = totalData.filter(
-          (d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate
-        );
-        filteredEnvivo = envivoData.filter(
-          (d) => new Date(d.date) >= startOfWeek && new Date(d.date) <= latestDate
-        );
+        const endOfWeek = getEndOfWeek(latestDate);
+        console.log(`Start of Week (Monday): ${startOfWeek.toISOString().split('T')[0]}`);
+        console.log(`End of Week (Sunday): ${endOfWeek.toISOString().split('T')[0]}`);
+        filteredTotal = totalData.filter((d) => {
+          const current = parseLocalDate(d.date);
+          return current >= startOfWeek && current <= endOfWeek;
+        });
+        filteredEnvivo = envivoData.filter((d) => {
+          const current = parseLocalDate(d.date);
+          return current >= startOfWeek && current <= endOfWeek;
+        });
         break;
 
       case PERIODS.CURRENT_MONTH:
@@ -157,20 +179,24 @@ const General = () => {
         const currentYear = latestDate.getFullYear();
         filteredTotal = totalData.filter(
           (d) =>
-            new Date(d.date).getMonth() === currentMonth &&
-            new Date(d.date).getFullYear() === currentYear
+            parseLocalDate(d.date).getMonth() === currentMonth &&
+            parseLocalDate(d.date).getFullYear() === currentYear
         );
         filteredEnvivo = envivoData.filter(
           (d) =>
-            new Date(d.date).getMonth() === currentMonth &&
-            new Date(d.date).getFullYear() === currentYear
+            parseLocalDate(d.date).getMonth() === currentMonth &&
+            parseLocalDate(d.date).getFullYear() === currentYear
         );
         break;
 
       case PERIODS.CURRENT_YEAR:
         const year = latestDate.getFullYear();
-        filteredTotal = totalData.filter((d) => new Date(d.date).getFullYear() === year);
-        filteredEnvivo = envivoData.filter((d) => new Date(d.date).getFullYear() === year);
+        filteredTotal = totalData.filter(
+          (d) => parseLocalDate(d.date).getFullYear() === year
+        );
+        filteredEnvivo = envivoData.filter(
+          (d) => parseLocalDate(d.date).getFullYear() === year
+        );
         break;
 
       case PERIODS.ALL_TIME:
@@ -179,6 +205,9 @@ const General = () => {
         filteredEnvivo = [...envivoData];
         break;
     }
+
+    console.log(`Filtered Total Data Count: ${filteredTotal.length}`);
+    console.log(`Filtered Envivo Data Count: ${filteredEnvivo.length}`);
 
     return { filteredTotal, filteredEnvivo };
   };
@@ -284,6 +313,15 @@ const General = () => {
     setComparisonMode((prev) => (prev === "percentage" ? "raw" : "percentage"));
   };
 
+  // Compute the Latest Date Label
+  const latestDateLabel = useMemo(() => {
+    if (totalData.length === 0) return "No data available";
+    const latestDateStr = totalData[totalData.length - 1].date;
+    const latestDate = parseLocalDate(latestDateStr);
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return `Viewing data for ${latestDate.toLocaleDateString(undefined, options)}`;
+  }, [totalData]);
+
   return (
     <>
       {isLoading ? (
@@ -299,13 +337,19 @@ const General = () => {
         </Text>
       ) : (
         <Flex
-  direction="column"
-  gap={10}
-  width="100%"
-  maxW="1200px"
-  alignItems="center"
-  bg="transparent"  // Explicitly set the background to transparent
->
+          direction="column"
+          gap={10}
+          width="100%"
+          maxW="1200px"
+          alignItems="center"
+          bg="transparent"  // Explicitly set the background to transparent
+        >
+          {/* New Label Added Here */}
+          <Text fontSize="sm" color="gray.400" mb={4}>
+            {latestDateLabel}
+          </Text>
+          {/* End of New Label */}
+
           {/* Main Data Display: Daily Counts */}
           <Flex
             direction={{ base: "column", md: "row" }}
@@ -322,9 +366,9 @@ const General = () => {
               boxShadow="lg"
               flex="1"
               borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
+              border="5px solid" // Adjust border thickness as needed
+              borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+              boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
             >
               <Flex justifyContent="space-between" alignItems="center" mb={4}>
                 <Text fontSize="md">Daily Request Count</Text> {/* Reduced fontSize */}
@@ -374,9 +418,9 @@ const General = () => {
               boxShadow="lg"
               flex="1"
               borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
+              border="5px solid" // Adjust border thickness as needed
+              borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+              boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
             >
               <Flex justifyContent="space-between" alignItems="center" mb={4}>
                 <Text fontSize="md">Daily Envivo Query Count</Text> {/* Reduced fontSize */}
@@ -430,9 +474,9 @@ const General = () => {
             w="100%"
             maxW="800px"
             borderRadius="20px" // Adjust border-radius as desired
-    border="5px solid" // Adjust border thickness as needed
-    borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
-    boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
+            border="5px solid" // Adjust border thickness as needed
+            borderColor="rgba(255, 255, 255, 0.8)" // White with slight transparency for a shiny effect
+            boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)" // Optional: adds a shiny glow effect
           >
             <Flex justifyContent="space-between" alignItems="center" mb={4}>
               <Text fontSize="lg">Averages for {selectedPeriod}</Text> {/* Reduced fontSize */}
@@ -455,7 +499,7 @@ const General = () => {
             <Grid templateColumns="repeat(2, 1fr)" gap={6}>
               <Box textAlign="center">
                 <Text fontSize="md" fontWeight="semibold"> {/* Reduced fontSize */}
-                  Total Requests
+                  Request Count
                 </Text>
                 <Text fontSize="2xl">
                   {averageData.totalAvg !== "N/A"
@@ -465,7 +509,7 @@ const General = () => {
               </Box>
               <Box textAlign="center">
                 <Text fontSize="md" fontWeight="semibold"> {/* Reduced fontSize */}
-                  Envivo Query Requests
+                  Envivo Query Count
                 </Text>
                 <Text fontSize="2xl">
                   {averageData.envivoAvg !== "N/A"
