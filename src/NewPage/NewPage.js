@@ -20,41 +20,26 @@ import {
   TagLabel,
   TagCloseButton,
   Collapse,
-  Link,
 } from "@chakra-ui/react";
 import { ChevronUpIcon, ChevronDownIcon } from "@chakra-ui/icons";
 import Papa from "papaparse";
 import Plot from "react-plotly.js";
 
-// Mapping of Spanish abbreviated month names to month numbers
-const monthMap = {
-  Ene: 0,
-  Feb: 1,
-  Mar: 2,
-  Abr: 3,
-  May: 4,
-  Jun: 5,
-  Jul: 6,
-  Ago: 7,
-  Sep: 8,
-  Oct: 9,
-  Nov: 10,
-  Dic: 11,
-};
-
-// Helper function to parse date strings like "12Ene2024" to Date objects
+// Helper function to parse date strings like "12-Jan" to Date objects
 const parseDateString = (dateStr) => {
-  const regex = /^(\d{1,2})([A-Za-z]{3})(\d{4})$/;
+  const regex = /^(\d{1,2})-([A-Za-z]{3})$/;
   const match = dateStr.match(regex);
   if (!match) return null;
-  const [, day, monthAbbr, year] = match;
-  const month = monthMap[monthAbbr];
-  if (month === undefined) return null;
-  return new Date(year, month, day);
+  const [, day, monthAbbr] = match;
+  const month = new Date(`${monthAbbr} 1, 2000`).getMonth(); // Convert month abbreviation to month index
+  if (isNaN(month)) return null;
+  const year = new Date().getFullYear(); // Assuming current year
+  return new Date(year, month, parseInt(day, 10));
 };
 
 // Helper function to format numbers with commas and no decimals
 const formatNumber = (number) => {
+  if (isNaN(number)) return "-";
   return Number(number).toLocaleString("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -62,13 +47,13 @@ const formatNumber = (number) => {
 };
 
 const NewPage = () => {
-  const [primaryCsvData, setPrimaryCsvData] = useState([]); // [{ url: '', category: '', detail: '', originalSheetUrl: '', aprovisionamiento: '' }, ...]
-  const [eventData, setEventData] = useState([]); // Aggregated event data from all CSVs
+  const [eventData, setEventData] = useState([]); // Aggregated event data
+  const [categories, setCategories] = useState([]); // Unique categories
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [selectedCategory, setSelectedCategory] = useState("All"); // For Distribution Section
-  const [selectedGraphOption, setSelectedGraphOption] = useState("TOTAL");
+  const [selectedGraphOption, setSelectedGraphOption] = useState("TOTAL"); // Graph metric
 
   const [selectedEvents, setSelectedEvents] = useState([]); // For customizable line graph
   const [selectedRow, setSelectedRow] = useState(null); // For detailed event view
@@ -82,9 +67,9 @@ const NewPage = () => {
 
   const toast = useToast();
 
-  // Google Sheets CSV URL (Primary CSV)
+  // New Google Sheets CSV URL
   const PRIMARY_CSV_URL =
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTeNhucRAFXnawnxWxk04bw2zEjcA23dstfybACBwTM5GVrnCsEZ7KyoI2vPdCbtnwUmEF6_dV-qEsV/pub?output=csv";
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vRA4x6epe-dPmk8C0RxA9Y9bgj4t7GUglqLzSn1FmPGawDdD5yawZg-ZO3hSG01yA/pub?output=csv";
 
   // Helper function to fetch and process CSV data
   const fetchCSVData = async (csvUrl) => {
@@ -106,7 +91,7 @@ const NewPage = () => {
     }
   };
 
-  // Fetch primary CSV (links, categories, details, original sheet URLs, and aprovisionamiento) and then fetch event data
+  // Fetch primary CSV and process event data
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -114,91 +99,80 @@ const NewPage = () => {
       try {
         // Fetch primary CSV
         const primaryData = await fetchCSVData(PRIMARY_CSV_URL);
-        // Assuming the first row is headers, skip it
-        const linksAndCategories = primaryData.slice(1).map((row) => ({
-          url: row[0]?.trim(),
-          category: row[1]?.trim(),
-          detail: row[2]?.trim(),
-          originalSheetUrl: row[3]?.trim(), // Column D
-          aprovisionamiento: row[4]?.trim(), // Column E (new)
-        })).filter(link => link.url); // Filter out empty URLs
-
-        setPrimaryCsvData(linksAndCategories);
+        // Data starts from row 10 (index 9)
+        const dataRows = primaryData.slice(9);
 
         const allEventData = [];
 
-        // Iterate over each link and fetch its event data
-        for (const linkObj of linksAndCategories) {
-          const { url, category, detail, originalSheetUrl, aprovisionamiento } = linkObj;
+        dataRows.forEach((row, index) => {
           try {
-            const data = await fetchCSVData(url);
-            // Validate data length
-            if (data.length < 10) { // Adjusted based on CSV structure
-              console.warn(`CSV at ${url} does not have enough rows.`);
-              continue;
+            const weekNumberStr = row[2]?.trim(); // Column C (index 2)
+            const weekNumber = weekNumberStr ? parseInt(weekNumberStr, 10) : 0;
+            const category = row[3]?.trim(); // Column D (index 3)
+            const dateStr = row[4]?.trim(); // Column E (index 4)
+            const eventName = row[5]?.trim(); // Column F (index 5)
+            const eventDescription = row[6]?.trim(); // Column G (index 6)
+            const siteUsers = row[11]?.trim(); // Column L (index 11)
+            const appsUsers = row[12]?.trim(); // Column M (index 12)
+            const subtotal = row[13]?.trim(); // Column N (index 13)
+            const ctv = row[14]?.trim(); // Column O (index 14)
+            const total = row[15]?.trim(); // Column P (index 15)
+            const aprov = row[17]?.trim(); // Column R (index 17)
+
+            // Skip row if category is empty
+            if (!category) {
+              return;
             }
 
-            // Extract Event Title and Date from A2 (Row 2, Column A)
-            const eventTitleRow = data[1]; // 0-indexed: A2 is row 1
-            const eventTitle = eventTitleRow[0] || "N/A"; // Column A is index 0
-            const [eventName, eventDateStr] = eventTitle.split(" - ").map((str) => str.trim());
-
-            // Parse the event date
-            const eventDate = parseDateString(eventDateStr);
+            // Parse date
+            const eventDate = parseDateString(dateStr);
             if (!eventDate) {
-              console.warn(`Invalid date format in CSV at ${url}: "${eventDateStr}"`);
+              console.warn(`Invalid date format in row ${index + 10}: "${dateStr}"`);
             }
 
-            // Get CTV from B5 (Row 5, Column B)
-            const ctvValue = data[4][1]; // Row 5 is index 4, Column B is index 1
-            const cleanedCtvValue = ctvValue.replace(/,/g, '');
-            const ctvCount = parseFloat(cleanedCtvValue) || 0;
-
-            // Sum B6:B9 (APPS) - Rows 6 to 9 are indices 5 to 8
-            let appsSum = 0;
-            for (let i = 5; i <= 8; i++) { // Corrected loop range
-              const appValue = data[i][1]; // Column B is index 1
-              // Remove commas and parse as float
-              const cleanedValue = appValue.replace(/,/g, '');
-              const parsedValue = parseFloat(cleanedValue);
-              if (!isNaN(parsedValue)) {
-                appsSum += parsedValue;
-              }
-            }
-
-            // Get B10 (SITE) - Row 10 is index 9
-            const siteValue = data[9][1]; // Column B is index 1
-            const cleanedSiteValue = siteValue.replace(/,/g, '');
-            const siteCount = parseFloat(cleanedSiteValue) || 0;
-
-            // Calculate SUBTOTAL and TOTAL
-            const subtotal = appsSum + siteCount;
-            const total = subtotal + ctvCount;
+            // Parse numerical values, handling possible errors
+            const parsedSiteUsers = parseFloat(siteUsers.replace(/,/g, "")) || 0;
+            const parsedAppsUsers = parseFloat(appsUsers.replace(/,/g, "")) || 0;
+            const parsedSubtotal =
+              parseFloat(subtotal.replace(/,/g, "")) ||
+              parsedAppsUsers + parsedSiteUsers;
+            const parsedCtv = ctv ? parseFloat(ctv.replace(/,/g, "")) : 0;
+            const parsedTotal = total
+              ? parseFloat(total.replace(/,/g, ""))
+              : parsedSubtotal + parsedCtv;
 
             allEventData.push({
-              id: `${eventName}-${eventDateStr}-${category}`, // Unique identifier
-              url: url,
+              id: `${eventName}-${dateStr}-${category}-${index}`, // Unique identifier
+              weekNumber: weekNumber || 0,
               category: category,
-              detail: detail || "", // From Column C
-              originalSheetUrl: originalSheetUrl || "", // From Column D
-              aprovisionamiento: aprovisionamiento || "-", // From Column E (new)
-              eventName: eventName || "N/A",
               eventDate: eventDate ? eventDate.toISOString().split("T")[0] : "N/A", // Format as YYYY-MM-DD
-              ctv: ctvCount,
-              apps: appsSum,
-              site: siteCount,
-              subtotal: subtotal,
-              total: total,
+              eventName: eventName || "N/A",
+              eventDescription: eventDescription || "",
+              siteUsers: parsedSiteUsers,
+              appsUsers: parsedAppsUsers,
+              subtotal: parsedSubtotal,
+              ctv: parsedCtv,
+              total: parsedTotal,
+              aprov: aprov || "-",
             });
           } catch (err) {
-            console.error(`Error processing CSV at ${linkObj.url}:`, err);
-            continue; // Skip this link and continue with others
+            console.error(`Error processing row ${index + 10}:`, err);
+            // Continue processing other rows
           }
-        }
+        });
 
-        // Sort allEventData based on eventDate descending
-        allEventData.sort((a, b) => new Date(b.eventDate) - new Date(a.eventDate));
+        // Sort allEventData based on weekNumber descending, then eventDate descending
+        allEventData.sort((a, b) => {
+          if (b.weekNumber !== a.weekNumber) {
+            return b.weekNumber - a.weekNumber;
+          }
+          return new Date(b.eventDate) - new Date(a.eventDate);
+        });
         setEventData(allEventData);
+
+        // Extract unique categories
+        const uniqueCategories = Array.from(new Set(allEventData.map((d) => d.category))).sort();
+        setCategories(uniqueCategories);
       } catch (err) {
         setError(err.message);
         toast({
@@ -216,31 +190,37 @@ const NewPage = () => {
     fetchData();
   }, [PRIMARY_CSV_URL, toast]);
 
-  // Filtering data for Distribution Section based on selectedCategory
+  // Filtering data for Distribution Section based on selectedCategory and selectedTimeFrame
   const distributionFilteredData = useMemo(() => {
     let data = [...eventData];
     if (selectedCategory !== "All") {
       data = data.filter((d) => d.category === selectedCategory);
     }
+
+    // Time frame is fixed to "All Time", so no additional filtering needed
+
     return data;
   }, [eventData, selectedCategory]);
 
-  // Filtering data for Events Table based on tableCategoryFilter
+  // Filtering data for Events Table based on tableCategoryFilter and selectedTimeFrame
   const tableFilteredData = useMemo(() => {
     let data = [...eventData];
-    return data.filter(
-      (row) =>
-        tableCategoryFilter === "All" || row.category === tableCategoryFilter
-    );
+    if (tableCategoryFilter !== "All") {
+      data = data.filter((d) => d.category === tableCategoryFilter);
+    }
+
+    // Time frame is fixed to "All Time", so no additional filtering needed
+
+    return data;
   }, [eventData, tableCategoryFilter]);
 
   // Aggregated statistics for Distribution Section
   const totalApps = useMemo(() => {
-    return distributionFilteredData.reduce((sum, d) => sum + d.apps, 0);
+    return distributionFilteredData.reduce((sum, d) => sum + d.appsUsers, 0);
   }, [distributionFilteredData]);
 
   const totalSites = useMemo(() => {
-    return distributionFilteredData.reduce((sum, d) => sum + d.site, 0);
+    return distributionFilteredData.reduce((sum, d) => sum + d.siteUsers, 0);
   }, [distributionFilteredData]);
 
   const totalCtv = useMemo(() => {
@@ -258,12 +238,18 @@ const NewPage = () => {
   // Calculate SUBTOTAL and TOTAL averages for Distribution Section
   const averageSubtotal = useMemo(() => {
     if (distributionFilteredData.length === 0) return "0";
-    return formatNumber(distributionFilteredData.reduce((sum, d) => sum + d.subtotal, 0) / distributionFilteredData.length);
+    return formatNumber(
+      distributionFilteredData.reduce((sum, d) => sum + d.subtotal, 0) /
+        distributionFilteredData.length
+    );
   }, [distributionFilteredData]);
 
   const averageTotal = useMemo(() => {
     if (distributionFilteredData.length === 0) return "0";
-    return formatNumber(distributionFilteredData.reduce((sum, d) => sum + d.total, 0) / distributionFilteredData.length);
+    return formatNumber(
+      distributionFilteredData.reduce((sum, d) => sum + d.total, 0) /
+        distributionFilteredData.length
+    );
   }, [distributionFilteredData]);
 
   // Prepare data for Pie Chart (Distribution Section)
@@ -312,15 +298,15 @@ const NewPage = () => {
       (a, b) => new Date(a.eventDate) - new Date(b.eventDate)
     );
 
-    const months = eventsSorted.map((d) => d.eventDate);
-    const APPS = eventsSorted.map((d) => d.apps);
-    const SITE = eventsSorted.map((d) => d.site);
+    const dates = eventsSorted.map((d) => d.eventDate);
+    const APPS = eventsSorted.map((d) => d.appsUsers);
+    const SITE = eventsSorted.map((d) => d.siteUsers);
     const CTV = eventsSorted.map((d) => d.ctv);
     const SUBTOTAL = eventsSorted.map((d) => d.subtotal);
     const TOTAL = eventsSorted.map((d) => d.total);
 
     return {
-      months,
+      dates,
       APPS,
       SITE,
       CTV,
@@ -421,43 +407,93 @@ const NewPage = () => {
     }
   }, [lineGraphData, selectedGraphOption]);
 
-  // Get the 10 most recent events
+  // Determine the 10 most recent events
   const recentEvents = useMemo(() => {
-    return eventData.slice(0, 10);
-  }, [eventData]);
+    return tableFilteredData.slice(0, 10);
+  }, [tableFilteredData]);
 
-  // Prepare filtered line graph data based on selected events
-  const filteredLineGraphData = useMemo(() => {
-    if (selectedEvents.length === 0) {
-      // If no events selected, display all
-      return {
-        x: lineGraphData.months,
-        y: lineGraphDisplayData.y,
-        name: lineGraphDisplayData.name,
-        color: lineGraphDisplayData.color,
-      };
+  // Filter the table data based on whether the table is expanded
+  const displayedTableData = useMemo(() => {
+    if (isTableExpanded) {
+      return tableFilteredData;
+    } else {
+      return recentEvents;
     }
-    // Filter events based on selectedEvents
-    const filteredEvents = lineGraphData.events.filter((event) =>
-      selectedEvents.includes(event.id)
-    );
+  }, [isTableExpanded, tableFilteredData, recentEvents]);
 
-    const xData = filteredEvents.map((d) => d.eventDate);
-    const yData = filteredEvents.map((d) => {
-      if (selectedGraphOption === "APPS") return d.apps;
-      if (selectedGraphOption === "SITE") return d.site;
-      if (selectedGraphOption === "CTV") return d.ctv;
-      if (selectedGraphOption === "SUBTOTAL") return d.subtotal;
-      return d.total;
-    });
-
-    return {
-      x: xData,
-      y: yData,
+  // Prepare filtered line graph data based on selected events and time frame
+  const plotData = useMemo(() => {
+    const aggregateTrace = {
+      x: lineGraphData.dates,
+      y: lineGraphDisplayData.y,
+      type: "scatter",
+      mode: "lines+markers",
       name: lineGraphDisplayData.name,
-      color: lineGraphDisplayData.color,
+      line: { color: lineGraphDisplayData.color },
+      fill: 'tozeroy', // Filled area below the line
+      fillcolor: `${lineGraphDisplayData.color}33`, // 20% opacity
+      marker: {
+        color: "white",
+        size: 6,
+      },
+      text: lineGraphDisplayData.y.map((y) => formatNumber(y)),
+      textposition: "top center",
+      textfont: {
+        color: "white",
+        size: 12,
+        family: "Arial",
+        weight: "bold",
+      },
     };
-  }, [selectedEvents, lineGraphDisplayData, lineGraphData.events, selectedGraphOption]);
+
+    if (selectedEvents.length === 0) {
+      return [aggregateTrace];
+    }
+
+    // Get selected events in the order they were selected
+    const selectedEventData = selectedEvents
+      .map((eventId) => eventData.find((e) => e.id === eventId))
+      .filter(Boolean)
+      .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+
+    const selectedTrace = {
+      x: selectedEventData.map((e) => e.eventDate),
+      y: selectedEventData.map((e) => {
+        if (selectedGraphOption === "APPS") return e.appsUsers;
+        if (selectedGraphOption === "SITE") return e.siteUsers;
+        if (selectedGraphOption === "CTV") return e.ctv;
+        if (selectedGraphOption === "SUBTOTAL") return e.subtotal;
+        return e.total;
+      }),
+      type: "scatter",
+      mode: "lines+markers",
+      name: "Selected Events",
+      line: { color: "#ff6347" }, // Example color for selected events
+      marker: {
+        color: "white",
+        size: 8,
+      },
+      text: selectedEventData.map((e) => formatNumber(
+        selectedGraphOption === "APPS" ? e.appsUsers :
+        selectedGraphOption === "SITE" ? e.siteUsers :
+        selectedGraphOption === "CTV" ? e.ctv :
+        selectedGraphOption === "SUBTOTAL" ? e.subtotal :
+        e.total
+      )),
+      textposition: "top center",
+      textfont: {
+        color: "white",
+        size: 12,
+        family: "Arial",
+        weight: "bold",
+      },
+    };
+
+    // **Change Here**: When events are selected, hide the aggregate trace
+    return [selectedTrace];
+    // If you want to show both, you can uncomment the line below
+    // return [aggregateTrace, selectedTrace];
+  }, [selectedEvents, lineGraphDisplayData, lineGraphData.dates, selectedGraphOption, eventData]);
 
   // Prepare comparison data
   const comparisonData = useMemo(() => {
@@ -471,13 +507,13 @@ const NewPage = () => {
     const baseEvent = eventsToCompare[0];
     const comparisons = eventsToCompare.slice(1).map((event) => {
       const appsChange =
-        baseEvent.apps === 0
+        baseEvent.appsUsers === 0
           ? 0
-          : ((event.apps - baseEvent.apps) / baseEvent.apps) * 100;
+          : ((event.appsUsers - baseEvent.appsUsers) / baseEvent.appsUsers) * 100;
       const siteChange =
-        baseEvent.site === 0
+        baseEvent.siteUsers === 0
           ? 0
-          : ((event.site - baseEvent.site) / baseEvent.site) * 100;
+          : ((event.siteUsers - baseEvent.siteUsers) / baseEvent.siteUsers) * 100;
       const ctvChange =
         baseEvent.ctv === 0
           ? 0
@@ -496,9 +532,10 @@ const NewPage = () => {
         eventDate: event.eventDate,
         appsChange: appsChange.toFixed(0), // Remove decimals
         siteChange: siteChange.toFixed(0), // Remove decimals
-        ctvChange: ctvChange.toFixed(0),   // Remove decimals
+        ctvChange: ctvChange.toFixed(0),
         subtotalChange: subtotalChange.toFixed(0),
         totalChange: totalChange.toFixed(0),
+        eventId: event.id,
       };
     });
 
@@ -509,7 +546,7 @@ const NewPage = () => {
   }, [selectedCompareEvents, eventData]);
 
   return (
-    <Box p={5} color="white" bg="gray.800" minH="100vh">
+    <Box p={5} color="white" minH="100vh">
       {/* Events Table at the Top */}
       {!isLoading && !error && (
         <Box
@@ -520,11 +557,17 @@ const NewPage = () => {
           boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)"
           mb={6}
         >
-          <Flex justifyContent="space-between" alignItems="center" mb={4}>
+          <Flex
+            justifyContent="space-between"
+            alignItems="center"
+            mb={4}
+            flexWrap="wrap"
+            gap={2}
+          >
             <Text fontSize="lg" fontWeight="bold" color="white">
               Events Table
             </Text>
-            <Flex gap={2}>
+            <Flex gap={2} flexWrap="wrap">
               <Select
                 placeholder="Filter Category"
                 value={tableCategoryFilter}
@@ -535,10 +578,13 @@ const NewPage = () => {
                 width="200px"
               >
                 <option value="All">All</option>
-                <option value="LigaMX">LigaMX</option>
-                <option value="Politics">Politics</option>
-                <option value="Other">Other</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </Select>
+              {/* Removed Time Frame Select Dropdown */}
               <Button
                 colorScheme={compareMode ? "red" : "teal"}
                 onClick={compareMode ? handleCancelCompare : handleCompare}
@@ -552,32 +598,21 @@ const NewPage = () => {
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
-                <Th fontSize="sm">Select</Th>
-                <Th fontSize="sm">Date</Th>
-                <Th fontSize="sm">Event Name</Th>
-                <Th fontSize="sm">DETAILS</Th>
-                <Th isNumeric fontSize="sm">
-                  SITE
-                </Th>
-                <Th isNumeric fontSize="sm">
-                  APPS'
-                </Th>
-                <Th isNumeric fontSize="sm">
-                  CTV
-                </Th>
-                <Th isNumeric fontSize="sm">
-                  SUBTOTAL
-                </Th>
-                <Th isNumeric fontSize="sm">
-                  TOTAL
-                </Th>
-                <Th isNumeric fontSize="sm">
-                  Aprov. {/* New Column Header */}
-                </Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Select</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Week</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Date</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Event Name</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Description</Th>
+                <Th isNumeric fontSize="sm" color="white" fontWeight="bold">SITE</Th>
+                <Th isNumeric fontSize="sm" color="white" fontWeight="bold">APPS'</Th>
+                <Th isNumeric fontSize="sm" color="white" fontWeight="bold">SUBTOTAL</Th>
+                <Th isNumeric fontSize="sm" color="white" fontWeight="bold">CTV</Th>
+                <Th isNumeric fontSize="sm" color="white" fontWeight="bold">TOTAL</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Aprov.</Th>
               </Tr>
             </Thead>
             <Tbody>
-              {tableFilteredData.map((row) => (
+              {displayedTableData.map((row) => (
                 <Tr
                   key={row.id}
                   bg={
@@ -599,31 +634,18 @@ const NewPage = () => {
                       onClick={(e) => e.stopPropagation()} // Prevent triggering row click
                     />
                   </Td>
+                  <Td>{row.weekNumber}</Td>
                   <Td>{row.eventDate}</Td>
-                  <Td>
-                    {row.originalSheetUrl ? (
-                      <Link
-                        href={row.originalSheetUrl}
-                        isExternal
-                        color="teal.200"
-                        textDecoration="underline"
-                        _hover={{ color: "teal.400" }}
-                      >
-                        {row.eventName}
-                      </Link>
-                    ) : (
-                      row.eventName
-                    )}
-                  </Td>
-                  <Td>
-                    {row.detail}
-                  </Td>
-                  <Td isNumeric>{formatNumber(row.site)}</Td>
-                  <Td isNumeric>{formatNumber(row.apps)}</Td>
-                  <Td isNumeric>{formatNumber(row.ctv)}</Td>
+                  <Td>{row.eventName}</Td>
+                  <Td>{row.eventDescription}</Td>
+                  <Td isNumeric>{formatNumber(row.siteUsers)}</Td>
+                  <Td isNumeric>{formatNumber(row.appsUsers)}</Td>
                   <Td isNumeric>{formatNumber(row.subtotal)}</Td>
-                  <Td isNumeric>{formatNumber(row.total)}</Td>
-                  <Td isNumeric>{row.aprovisionamiento}</Td> {/* Display Aprovisionamiento */}
+                  <Td isNumeric>
+                    {row.ctv > 0 ? formatNumber(row.ctv) : "-"}
+                  </Td>
+                  <Td isNumeric fontWeight="bold">{formatNumber(row.total)}</Td> {/* Made TOTAL numbers bold */}
+                  <Td>{row.aprov}</Td>
                 </Tr>
               ))}
             </Tbody>
@@ -634,7 +656,13 @@ const NewPage = () => {
               <Button
                 size="xs"
                 onClick={() => setIsTableExpanded(!isTableExpanded)}
-                leftIcon={isTableExpanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
+                leftIcon={
+                  isTableExpanded ? (
+                    <ChevronUpIcon />
+                  ) : (
+                    <ChevronDownIcon />
+                  )
+                }
                 colorScheme="teal"
               >
                 {isTableExpanded ? "Show Less" : "Show All"}
@@ -660,7 +688,7 @@ const NewPage = () => {
                   <Plot
                     data={[
                       {
-                        values: [selectedRow.apps, selectedRow.site, selectedRow.ctv],
+                        values: [selectedRow.appsUsers, selectedRow.siteUsers, selectedRow.ctv],
                         labels: ["APPS'", "SITE", "CTV"],
                         type: "pie",
                         marker: {
@@ -678,8 +706,8 @@ const NewPage = () => {
                       },
                     ]}
                     layout={{
-                      width: 600, // Increased size
-                      height: 600, // Increased size
+                      width: 600,
+                      height: 600,
                       paper_bgcolor: "transparent",
                       plot_bgcolor: "transparent",
                       showlegend: true,
@@ -702,7 +730,7 @@ const NewPage = () => {
               boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)"
               mb={6}
             >
-              <Flex justifyContent="space-between" alignItems="center" mb={4}>
+              <Flex justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
                 <Text fontSize="lg" fontWeight="bold" color="white">
                   Comparison
                 </Text>
@@ -717,17 +745,17 @@ const NewPage = () => {
               <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th fontSize="sm">Event Name</Th>
-                    <Th fontSize="sm">APPS' Count</Th>
-                    <Th fontSize="sm">SITE Count</Th>
-                    <Th fontSize="sm">CTV Count</Th>
-                    <Th fontSize="sm">SUBTOTAL Count</Th>
-                    <Th fontSize="sm">TOTAL Count</Th>
-                    <Th fontSize="sm">APPS' Change (%)</Th>
-                    <Th fontSize="sm">SITE Change (%)</Th>
-                    <Th fontSize="sm">CTV Change (%)</Th>
-                    <Th fontSize="sm">SUBTOTAL Change (%)</Th>
-                    <Th fontSize="sm">TOTAL Change (%)</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">Event Name</Th>
+                    <Th isNumeric fontSize="sm" color="white" fontWeight="bold">APPS' Count</Th>
+                    <Th isNumeric fontSize="sm" color="white" fontWeight="bold">SITE Count</Th>
+                    <Th isNumeric fontSize="sm" color="white" fontWeight="bold">CTV Count</Th>
+                    <Th isNumeric fontSize="sm" color="white" fontWeight="bold">SUBTOTAL Count</Th>
+                    <Th isNumeric fontSize="sm" color="white" fontWeight="bold">TOTAL Count</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">APPS' Change (%)</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">SITE Change (%)</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">CTV Change (%)</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">SUBTOTAL Change (%)</Th>
+                    <Th fontSize="sm" color="white" fontWeight="bold">TOTAL Change (%)</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -735,9 +763,9 @@ const NewPage = () => {
                     <Td fontWeight="bold" color="white">
                       {comparisonData.baseEvent.eventName} - {comparisonData.baseEvent.eventDate}
                     </Td>
-                    <Td isNumeric>{formatNumber(comparisonData.baseEvent.apps)}</Td>
-                    <Td isNumeric>{formatNumber(comparisonData.baseEvent.site)}</Td>
-                    <Td isNumeric>{formatNumber(comparisonData.baseEvent.ctv)}</Td>
+                    <Td isNumeric>{formatNumber(comparisonData.baseEvent.appsUsers)}</Td>
+                    <Td isNumeric>{formatNumber(comparisonData.baseEvent.siteUsers)}</Td>
+                    <Td isNumeric>{comparisonData.baseEvent.ctv > 0 ? formatNumber(comparisonData.baseEvent.ctv) : "-"}</Td>
                     <Td isNumeric>{formatNumber(comparisonData.baseEvent.subtotal)}</Td>
                     <Td isNumeric>{formatNumber(comparisonData.baseEvent.total)}</Td>
                     <Td color="gray.400">-</Td>
@@ -754,30 +782,18 @@ const NewPage = () => {
                     const totalChangePositive = parseFloat(comp.totalChange) >= 0;
 
                     // Find the event to get accurate counts
-                    const event = eventData.find(e => e.id === selectedCompareEvents[index + 1]);
+                    const event = eventData.find(e => e.id === comp.eventId);
 
                     return (
                       <Tr key={index}>
                         <Td fontWeight="bold" color="white">
-                          {event && event.originalSheetUrl ? (
-                            <Link
-                              href={event.originalSheetUrl}
-                              isExternal
-                              color="teal.200"
-                              textDecoration="underline"
-                              _hover={{ color: "teal.400" }}
-                            >
-                              {comp.eventName} - {comp.eventDate}
-                            </Link>
-                          ) : (
-                            `${comp.eventName} - ${comp.eventDate}`
-                          )}
+                          {event ? event.eventName : comp.eventName} - {comp.eventDate}
                         </Td>
-                        <Td isNumeric>{formatNumber(event?.apps || 0)}</Td>
-                        <Td isNumeric>{formatNumber(event?.site || 0)}</Td>
-                        <Td isNumeric>{formatNumber(event?.ctv || 0)}</Td>
-                        <Td isNumeric>{formatNumber(event?.subtotal || 0)}</Td>
-                        <Td isNumeric>{formatNumber(event?.total || 0)}</Td>
+                        <Td isNumeric>{event ? formatNumber(event.appsUsers) : "0"}</Td>
+                        <Td isNumeric>{event ? formatNumber(event.siteUsers) : "0"}</Td>
+                        <Td isNumeric>{event && event.ctv > 0 ? formatNumber(event.ctv) : "-"}</Td>
+                        <Td isNumeric>{event ? formatNumber(event.subtotal) : "0"}</Td>
+                        <Td isNumeric>{event ? formatNumber(event.total) : "0"}</Td>
                         <Td color={appsChangePositive ? "green.400" : "red.400"}>
                           {comp.appsChange}%
                         </Td>
@@ -824,8 +840,8 @@ const NewPage = () => {
                 <Plot
                   data={pieData}
                   layout={{
-                    width: 500, // Increased size
-                    height: 500, // Increased size
+                    width: 500,
+                    height: 500,
                     paper_bgcolor: "transparent",
                     plot_bgcolor: "transparent",
                     showlegend: true,
@@ -846,26 +862,13 @@ const NewPage = () => {
                 size="sm"
               >
                 <option value="All">All</option>
-                <option value="LigaMX">LigaMX</option>
-                <option value="Politics">Politics</option>
-                <option value="Other">Other</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </Select>
-              {/* Removed Time Frame Select */}
-              {/*
-              <Select
-                value={selectedTimeFrame}
-                onChange={(e) => setSelectedTimeFrame(e.target.value)}
-                placeholder="Select Time Frame"
-                bg="white"
-                color="black"
-                size="sm"
-              >
-                <option value="All Time">All Time</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Yearly">Yearly</option>
-                <option value="Historic">Historic</option>
-              </Select>
-              */}
+              {/* Removed Time Frame Select Dropdown */}
             </Flex>
           </Box>
 
@@ -873,94 +876,95 @@ const NewPage = () => {
           <Box
             bg="linear-gradient(90deg, #000000, #7800ff)"
             borderRadius="20px"
-            p={4} // Reduced padding from 6 to 4
+            p={4}
             border="5px solid rgba(255, 255, 255, 0.8)"
             boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)"
           >
             <Text fontSize="md" mb={4} textAlign="center" color="white" fontWeight="bold">
-              Average Number of APPS', SITE, & CTV Clicks
+              Average Metrics
             </Text>
             <Flex direction="column" gap={4} align="center">
               {/* Average APPS' */}
               <Box
-                bg="gray.600"
-                p={4} // Reduced padding from 8 to 4
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
                 borderRadius="20px"
                 width="100%"
                 textAlign="center"
-                border="2px solid rgba(255, 255, 255, 0.5)"
+                border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
                   Average APPS'
                 </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white"> {/* Reduced fontSize from 3xl to xl */}
+                <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageApps}
                 </Text>
               </Box>
               {/* Average SITE */}
               <Box
-                bg="gray.600"
-                p={4} // Reduced padding from 8 to 4
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
                 borderRadius="20px"
                 width="100%"
                 textAlign="center"
-                border="2px solid rgba(255, 255, 255, 0.5)"
+                border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
                   Average SITE
                 </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white"> {/* Reduced fontSize from 3xl to xl */}
+                <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageSites}
                 </Text>
               </Box>
               {/* Average CTV */}
               <Box
-                bg="gray.600"
-                p={4} // Reduced padding from 8 to 4
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
                 borderRadius="20px"
                 width="100%"
                 textAlign="center"
-                border="2px solid rgba(255, 255, 255, 0.5)"
+                border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
                   Average CTV
                 </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white"> {/* Reduced fontSize from 3xl to xl */}
+                <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageCtv}
                 </Text>
               </Box>
               {/* Average SUBTOTAL */}
               <Box
-                bg="gray.600"
-                p={4} // Reduced padding from 8 to 4
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
                 borderRadius="20px"
                 width="100%"
                 textAlign="center"
-                border="2px solid rgba(255, 255, 255, 0.5)"
+                border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
                   Average SUBTOTAL
                 </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white"> {/* Reduced fontSize from 3xl to xl */}
+                <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageSubtotal}
                 </Text>
               </Box>
               {/* Average TOTAL */}
               <Box
-                bg="gray.600"
-                p={4} // Reduced padding from 8 to 4
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
                 borderRadius="20px"
                 width="100%"
                 textAlign="center"
-                border="2px solid rgba(255, 255, 255, 0.5)"
+                border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
                   Average TOTAL
                 </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white"> {/* Reduced fontSize from 3xl to xl */}
+                <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageTotal}
                 </Text>
               </Box>
+              {/* Removed Average Aprov */}
             </Flex>
           </Box>
         </Grid>
@@ -1001,8 +1005,8 @@ const NewPage = () => {
               <Select
                 placeholder="Select Event"
                 onChange={handleEventSelection}
-                bg="gray.600" // Dark grey background
-                color="white" // White text
+                bg="gray.600"
+                color="white"
                 size="sm"
                 value=""
               >
@@ -1033,39 +1037,18 @@ const NewPage = () => {
                 })}
               </Flex>
             </Box>
+
+            {/* Removed Time Frame Select Dropdown */}
           </Flex>
           <Flex justifyContent="center">
-            {lineGraphData.months.length === 0 ? (
+            {lineGraphData.dates.length === 0 ? (
               <Text fontSize="sm" color="white">No data to display.</Text>
             ) : (
               <Plot
-                data={[
-                  {
-                    x: filteredLineGraphData.x,
-                    y: filteredLineGraphData.y,
-                    type: "scatter",
-                    mode: "lines+markers",
-                    name: filteredLineGraphData.name,
-                    line: { color: filteredLineGraphData.color },
-                    fill: 'tozeroy', // Filled area below the line
-                    fillcolor: `${filteredLineGraphData.color}33`, // 20% opacity
-                    marker: {
-                      color: "white",
-                      size: 6,
-                    },
-                    text: filteredLineGraphData.y.map((y) => formatNumber(y)),
-                    textposition: "top center",
-                    textfont: {
-                      color: "white",
-                      size: 12,
-                      family: "Arial",
-                      weight: "bold",
-                    },
-                  },
-                ]}
+                data={plotData}
                 layout={{
                   width: "100%",
-                  height: 500, // Increased height for better visibility
+                  height: 500,
                   paper_bgcolor: "transparent",
                   plot_bgcolor: "transparent",
                   xaxis: {
@@ -1074,7 +1057,7 @@ const NewPage = () => {
                     tickangle: -45,
                     automargin: true,
                     tickfont: {
-                      color: "white",
+                      color: "rgba(255, 255, 255, 0.7)", // Semi-transparent white
                       size: 12,
                     },
                     titlefont: {
@@ -1083,11 +1066,12 @@ const NewPage = () => {
                       family: "Arial",
                       weight: "bold",
                     },
+                    gridcolor: "rgba(255, 255, 255, 0.2)", // More transparent grid lines
                   },
                   yaxis: {
                     title: "Count",
                     tickfont: {
-                      color: "white",
+                      color: "rgba(255, 255, 255, 0.7)", // Semi-transparent white
                       size: 12,
                     },
                     titlefont: {
@@ -1096,6 +1080,7 @@ const NewPage = () => {
                       family: "Arial",
                       weight: "bold",
                     },
+                    gridcolor: "rgba(255, 255, 255, 0.2)", // More transparent grid lines
                   },
                   legend: {
                     orientation: "h",
@@ -1111,7 +1096,7 @@ const NewPage = () => {
                     },
                   },
                   hoverlabel: {
-                    bgcolor: "gray", // Changed tooltip background to grey
+                    bgcolor: "gray",
                     font: {
                       color: "white",
                       family: "Arial",
@@ -1127,11 +1112,7 @@ const NewPage = () => {
         </Box>
       )}
 
-      {/* Comparison Section */}
-      {/* Removed as comparison is now handled above the pie chart */}
-
-      {/* Show Database Button at the Bottom */}
-      {/* Removed as per your instruction to delete the database management */}
+      {/* Note: The Comparison and Database Management sections remain unchanged */}
     </Box>
   );
 };
