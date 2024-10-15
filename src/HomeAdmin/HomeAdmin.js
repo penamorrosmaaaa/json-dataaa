@@ -1,38 +1,25 @@
-import React, { useState } from 'react';
-import { Box, Text, Input, Table, Thead, Tbody, Tr, Th, Td } from '@chakra-ui/react';
-import Papa from 'papaparse';
+import React, { useState, useEffect } from 'react';
+import { Box, Text, Button, Link } from '@chakra-ui/react';
 
 const HomeAdmin = () => {
-  const [data, setData] = useState([]);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      Papa.parse(file, {
-        header: false,
-        skipEmptyLines: true,
-        complete: (result) => {
-          const csvData = result.data;
-
-          // Extract and format date (only first 10 characters in full YYYY-MM-DD format)
-          const rawDate = csvData[3][1];
-          const formattedDate = rawDate ? rawDate.substring(0, 10) : '';
-
-          // Extract C9 to C58 and D9 to D58
-          const c9ToC58 = csvData.slice(8, 58).map(row => row[2]);
-          const d9ToD58 = csvData.slice(8, 58).map(row => row[3]);
-
-          const formattedData = c9ToC58.map((cValue, index) => ({
-            date: formattedDate,
-            columnC: cValue,
-            columnD: d9ToD58[index]
-          }));
-
-          setData(formattedData);
-        },
-      });
-    }
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
   };
+
+  // Lock scrolling when in fullscreen mode
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = "hidden"; // Prevents scrolling on the page
+    } else {
+      document.body.style.overflow = "auto"; // Restores scrolling when not fullscreen
+    }
+
+    return () => {
+      document.body.style.overflow = "auto"; // Ensure scrolling is restored if component unmounts
+    };
+  }, [isFullScreen]);
 
   return (
     <Box p={0} width="100vw" height="100vh">
@@ -41,7 +28,15 @@ const HomeAdmin = () => {
       </Text>
       
       {/* Embed Google Sheet */}
-      <Box width="100%" height="calc(100vh - 72px)">
+      <Box 
+        width="100%" 
+        height={isFullScreen ? "100vh" : "calc(100vh - 140px)"}
+        position={isFullScreen ? "fixed" : "relative"}
+        top={isFullScreen ? "0" : "auto"}
+        left={isFullScreen ? "0" : "auto"}
+        zIndex={isFullScreen ? "1000" : "auto"}
+        bg="white"
+      >
         <iframe 
           src="https://docs.google.com/spreadsheets/d/1I7rzIKf_CNjdP1iYGHivom5eS8YtGlSaP7ltG-HVw3w/edit?usp=sharing"
           width="100%" 
@@ -49,30 +44,32 @@ const HomeAdmin = () => {
           style={{ border: "0" }}
           allowFullScreen
         ></iframe>
+        
+        {/* Full-Screen Toggle Button */}
+        <Button 
+          position="absolute" 
+          top="10px" 
+          right="10px" 
+          zIndex="1100" 
+          colorScheme="teal"
+          onClick={toggleFullScreen}
+        >
+          {isFullScreen ? "Exit Full Screen" : "Full Screen"}
+        </Button>
       </Box>
-      
-      {/* Converter Helper Section */}
-      <Box p={5} mt={5} borderWidth="1px" borderRadius="lg" bg="white">
-        <Input type="file" accept=".csv" onChange={handleFileUpload} mb={5} />
-        <Table variant="simple" colorScheme="blackAlpha" style={{ fontFamily: 'Arial', color: 'black' }}>
-          <Thead>
-            <Tr>
-              <Th color="black">Date</Th>
-              <Th color="black">C9 to C58</Th>
-              <Th color="black">D9 to D58</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {data.map((row, index) => (
-              <Tr key={index}>
-                <Td>{row.date}</Td>
-                <Td>{row.columnC}</Td>
-                <Td>{row.columnD}</Td>
-              </Tr>
-            ))}
-          </Tbody>
-        </Table>
-      </Box>
+
+      {/* Button for Google Drive Folder */}
+      {!isFullScreen && (
+        <Box p={5} textAlign="center" bg="gray.800" color="white">
+          <Text fontSize="lg" mb={2}>Access Google Drive Folder:</Text>
+          <Link 
+            href="https://drive.google.com/drive/u/0/folders/1qZP_dE9Hk7QTjSaf3hQPqHjgKbVHOGk5" 
+            isExternal
+          >
+            <Button colorScheme="teal">Open Google Drive</Button>
+          </Link>
+        </Box>
+      )}
     </Box>
   );
 };
