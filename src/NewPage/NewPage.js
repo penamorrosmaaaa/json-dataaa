@@ -39,6 +39,7 @@ const parseDateString = (dateStr) => {
 
 // Helper function to format numbers with commas and no decimals
 const formatNumber = (number) => {
+  if (number === null || number === undefined) return "-";
   if (isNaN(number)) return "-";
   return Number(number).toLocaleString("en-US", {
     minimumFractionDigits: 0,
@@ -53,6 +54,7 @@ const NewPage = () => {
   const [error, setError] = useState(null);
 
   const [selectedCategory, setSelectedCategory] = useState("All"); // For Distribution Section
+  const [selectedSubcategory, setSelectedSubcategory] = useState("All"); // New Subcategory Filter
   const [selectedGraphOption, setSelectedGraphOption] = useState("TOTAL"); // Graph metric
 
   const [selectedEvents, setSelectedEvents] = useState([]); // For customizable line graph
@@ -62,8 +64,11 @@ const NewPage = () => {
   const [isPieChartVisible, setIsPieChartVisible] = useState(false); // Toggle pie chart visibility
 
   const [tableCategoryFilter, setTableCategoryFilter] = useState("All"); // Table-specific category filter
+  const [tableSubcategoryFilter, setTableSubcategoryFilter] = useState("All"); // New Table Subcategory Filter
   const [compareMode, setCompareMode] = useState(false); // Toggle compare mode
   const [selectedCompareEvents, setSelectedCompareEvents] = useState([]); // Events selected for comparison
+
+  const [timelineRange, setTimelineRange] = useState({ start: null, end: null }); // Timeline range for line graph
 
   const toast = useToast();
 
@@ -109,15 +114,16 @@ const NewPage = () => {
             const weekNumberStr = row[2]?.trim(); // Column C (index 2)
             const weekNumber = weekNumberStr ? parseInt(weekNumberStr, 10) : 0;
             const category = row[3]?.trim(); // Column D (index 3)
-            const dateStr = row[4]?.trim(); // Column E (index 4)
-            const eventName = row[5]?.trim(); // Column F (index 5)
-            const eventDescription = row[6]?.trim(); // Column G (index 6)
-            const siteUsers = row[11]?.trim(); // Column L (index 11)
-            const appsUsers = row[12]?.trim(); // Column M (index 12)
-            const subtotal = row[13]?.trim(); // Column N (index 13)
-            const ctv = row[14]?.trim(); // Column O (index 14)
-            const total = row[15]?.trim(); // Column P (index 15)
-            const aprov = row[17]?.trim(); // Column R (index 17)
+            const subcategory = row[4]?.trim(); // Column E (index 4)
+            const dateStr = row[5]?.trim(); // Column F (index 5)
+            const eventName = row[6]?.trim(); // Column G (index 6)
+            const eventDescription = row[7]?.trim(); // Column H (index 7)
+            const siteUsers = row[12]?.trim(); // Column M (index 12)
+            const appsUsers = row[13]?.trim(); // Column N (index 13)
+            const subtotal = row[14]?.trim(); // Column O (index 14)
+            const ctv = row[15]?.trim(); // Column P (index 15)
+            const total = row[16]?.trim(); // Column Q (index 16)
+            const aprov = row[18]?.trim(); // Column S (index 18)
 
             // Skip row if category is empty
             if (!category) {
@@ -136,15 +142,19 @@ const NewPage = () => {
             const parsedSubtotal =
               parseFloat(subtotal.replace(/,/g, "")) ||
               parsedAppsUsers + parsedSiteUsers;
-            const parsedCtv = ctv ? parseFloat(ctv.replace(/,/g, "")) : 0;
-            const parsedTotal = total
+            const parsedCtv = ctv && ctv !== "-" ? parseFloat(ctv.replace(/,/g, "")) : 0;
+            const parsedTotal = total && total !== "-"
               ? parseFloat(total.replace(/,/g, ""))
               : parsedSubtotal + parsedCtv;
 
+            // Parse aprov, keep as number or null for '-'
+            const parsedAprov = aprov && aprov !== "-" ? parseFloat(aprov.replace(/,/g, "")) : null;
+
             allEventData.push({
-              id: `${eventName}-${dateStr}-${category}-${index}`, // Unique identifier
+              id: `${eventName}-${dateStr}-${category}-${subcategory}-${index}`, // Unique identifier
               weekNumber: weekNumber || 0,
               category: category,
+              subcategory: subcategory || "N/A",
               eventDate: eventDate ? eventDate.toISOString().split("T")[0] : "N/A", // Format as YYYY-MM-DD
               eventName: eventName || "N/A",
               eventDescription: eventDescription || "",
@@ -153,7 +163,7 @@ const NewPage = () => {
               subtotal: parsedSubtotal,
               ctv: parsedCtv,
               total: parsedTotal,
-              aprov: aprov || "-",
+              aprov: parsedAprov, // Store as number or null
             });
           } catch (err) {
             console.error(`Error processing row ${index + 10}:`, err);
@@ -170,7 +180,7 @@ const NewPage = () => {
         });
         setEventData(allEventData);
 
-        // Extract unique categories
+        // Extract unique categories and subcategories
         const uniqueCategories = Array.from(new Set(allEventData.map((d) => d.category))).sort();
         setCategories(uniqueCategories);
       } catch (err) {
@@ -190,29 +200,89 @@ const NewPage = () => {
     fetchData();
   }, [PRIMARY_CSV_URL, toast]);
 
-  // Filtering data for Distribution Section based on selectedCategory and selectedTimeFrame
+  // Extract unique subcategories based on selected category
+  const subcategories = useMemo(() => {
+    if (selectedCategory === "All") {
+      return Array.from(new Set(eventData.map((d) => d.subcategory))).sort();
+    }
+    const filtered = eventData.filter((d) => d.category === selectedCategory);
+    return Array.from(new Set(filtered.map((d) => d.subcategory))).sort();
+  }, [eventData, selectedCategory]);
+
+  // Dynamic Category Colors Assignment
+  const categoryColors = useMemo(() => {
+    const predefinedColors = [
+      "blue.600",
+      "green.600",
+      "purple.600",
+      "orange.600",
+      "teal.600",
+      "red.600",
+      "yellow.600",
+      "pink.600",
+      "cyan.600",
+      "gray.600",
+      "indigo.600",
+      "purple.500",
+      "blue.500",
+      "green.500",
+      "orange.500",
+      "teal.500",
+      "red.500",
+      "yellow.500",
+      "pink.500",
+      "cyan.500",
+      // Add more colors as needed
+    ];
+
+    const mapping = {};
+    categories.forEach((category, index) => {
+      mapping[category] = predefinedColors[index % predefinedColors.length];
+    });
+    return mapping;
+  }, [categories]);
+
+  // Filtering data for Distribution Section based on selectedCategory and selectedSubcategory
   const distributionFilteredData = useMemo(() => {
     let data = [...eventData];
     if (selectedCategory !== "All") {
       data = data.filter((d) => d.category === selectedCategory);
     }
+    if (selectedSubcategory !== "All") {
+      data = data.filter((d) => d.subcategory === selectedSubcategory);
+    }
 
-    // Time frame is fixed to "All Time", so no additional filtering needed
+    // Filter by timeline range if set
+    if (timelineRange.start) {
+      data = data.filter((d) => new Date(d.eventDate) >= new Date(timelineRange.start));
+    }
+    if (timelineRange.end) {
+      data = data.filter((d) => new Date(d.eventDate) <= new Date(timelineRange.end));
+    }
 
     return data;
-  }, [eventData, selectedCategory]);
+  }, [eventData, selectedCategory, selectedSubcategory, timelineRange]);
 
-  // Filtering data for Events Table based on tableCategoryFilter and selectedTimeFrame
+  // Filtering data for Events Table based on tableCategoryFilter and tableSubcategoryFilter
   const tableFilteredData = useMemo(() => {
     let data = [...eventData];
     if (tableCategoryFilter !== "All") {
       data = data.filter((d) => d.category === tableCategoryFilter);
     }
+    if (tableSubcategoryFilter !== "All") {
+      data = data.filter((d) => d.subcategory === tableSubcategoryFilter);
+    }
 
-    // Time frame is fixed to "All Time", so no additional filtering needed
+    // Filter by timeline range if set
+    if (timelineRange.start) {
+      data = data.filter((d) => new Date(d.eventDate) >= new Date(timelineRange.start));
+    }
+    if (timelineRange.end) {
+      data = data.filter((d) => new Date(d.eventDate) <= new Date(timelineRange.end));
+    }
 
     return data;
-  }, [eventData, tableCategoryFilter]);
+  }, [eventData, tableCategoryFilter, tableSubcategoryFilter, timelineRange]);
 
   // Aggregated statistics for Distribution Section
   const totalApps = useMemo(() => {
@@ -235,6 +305,16 @@ const NewPage = () => {
     return distributionFilteredData.reduce((sum, d) => sum + d.total, 0);
   }, [distributionFilteredData]);
 
+  // Calculate AVERAGE APROV, ignoring zeros and nulls
+  const averageAprov = useMemo(() => {
+    const aprovValues = distributionFilteredData
+      .map((d) => d.aprov)
+      .filter((val) => val !== null && val !== 0);
+    if (aprovValues.length === 0) return "0";
+    const sumAprov = aprovValues.reduce((sum, val) => sum + val, 0);
+    return formatNumber(sumAprov / aprovValues.length);
+  }, [distributionFilteredData]);
+
   // Calculate SUBTOTAL and TOTAL averages for Distribution Section
   const averageSubtotal = useMemo(() => {
     if (distributionFilteredData.length === 0) return "0";
@@ -250,6 +330,16 @@ const NewPage = () => {
       distributionFilteredData.reduce((sum, d) => sum + d.total, 0) /
         distributionFilteredData.length
     );
+  }, [distributionFilteredData]);
+
+  // Calculate AVERAGE CTV excluding 0
+  const averageCtv = useMemo(() => {
+    const ctvValues = distributionFilteredData
+      .map((d) => d.ctv)
+      .filter((ctv) => ctv > 0);
+    if (ctvValues.length === 0) return "0";
+    const sumCtv = ctvValues.reduce((sum, ctv) => sum + ctv, 0);
+    return formatNumber(sumCtv / ctvValues.length);
   }, [distributionFilteredData]);
 
   // Prepare data for Pie Chart (Distribution Section)
@@ -285,11 +375,6 @@ const NewPage = () => {
     if (distributionFilteredData.length === 0) return "0";
     return formatNumber(totalSites / distributionFilteredData.length);
   }, [totalSites, distributionFilteredData]);
-
-  const averageCtv = useMemo(() => {
-    if (distributionFilteredData.length === 0) return "0";
-    return formatNumber(totalCtv / distributionFilteredData.length);
-  }, [totalCtv, distributionFilteredData]);
 
   // Prepare data for Line Graph (Events Over Time)
   const lineGraphData = useMemo(() => {
@@ -398,6 +483,12 @@ const NewPage = () => {
         name: "SUBTOTAL (APPS + SITE)",
         color: "#4BC0C0",
       };
+    } else if (selectedGraphOption === "ALL") {
+      return {
+        y: null, // Not used in 'ALL' case
+        name: "ALL",
+        color: null,
+      };
     } else {
       return {
         y: lineGraphData.TOTAL,
@@ -421,8 +512,81 @@ const NewPage = () => {
     }
   }, [isTableExpanded, tableFilteredData, recentEvents]);
 
-  // Prepare filtered line graph data based on selected events and time frame
+  // Prepare filtered line graph data based on selected events and timeline range
   const plotData = useMemo(() => {
+    if (selectedGraphOption === "ALL") {
+      const traceAPPS = {
+        x: lineGraphData.dates,
+        y: lineGraphData.APPS,
+        type: "scatter",
+        mode: "lines+markers",
+        name: "APPS'",
+        line: { color: "#36a2eb" },
+        fill: 'tozeroy', // Filled area below the line
+        fillcolor: "#36a2eb33", // 20% opacity
+        marker: {
+          color: "white",
+          size: 6,
+        },
+        text: lineGraphData.APPS.map((y) => formatNumber(y)),
+        textposition: "top center",
+        textfont: {
+          color: "white",
+          size: 12,
+          family: "Arial",
+          weight: "bold",
+        },
+      };
+
+      const traceSITE = {
+        x: lineGraphData.dates,
+        y: lineGraphData.SITE,
+        type: "scatter",
+        mode: "lines+markers",
+        name: "SITE",
+        line: { color: "#ff6384" },
+        fill: 'tozeroy',
+        fillcolor: "#ff638433",
+        marker: {
+          color: "white",
+          size: 6,
+        },
+        text: lineGraphData.SITE.map((y) => formatNumber(y)),
+        textposition: "top center",
+        textfont: {
+          color: "white",
+          size: 12,
+          family: "Arial",
+          weight: "bold",
+        },
+      };
+
+      const traceCTV = {
+        x: lineGraphData.dates,
+        y: lineGraphData.CTV,
+        type: "scatter",
+        mode: "lines+markers",
+        name: "CTV",
+        line: { color: "#ffce56" },
+        fill: 'tozeroy',
+        fillcolor: "#ffce5633",
+        marker: {
+          color: "white",
+          size: 6,
+        },
+        text: lineGraphData.CTV.map((y) => (y > 0 ? formatNumber(y) : "-")),
+        textposition: "top center",
+        textfont: {
+          color: "white",
+          size: 12,
+          family: "Arial",
+          weight: "bold",
+        },
+      };
+
+      return [traceAPPS, traceSITE, traceCTV];
+    }
+
     const aggregateTrace = {
       x: lineGraphData.dates,
       y: lineGraphDisplayData.y,
@@ -469,6 +633,8 @@ const NewPage = () => {
       mode: "lines+markers",
       name: "Selected Events",
       line: { color: "#ff6347" }, // Example color for selected events
+      fill: 'tozeroy',
+      fillcolor: "#ff634733",
       marker: {
         color: "white",
         size: 8,
@@ -489,7 +655,6 @@ const NewPage = () => {
       },
     };
 
-    // **Change Here**: When events are selected, hide the aggregate trace
     return [selectedTrace];
     // If you want to show both, you can uncomment the line below
     // return [aggregateTrace, selectedTrace];
@@ -571,7 +736,10 @@ const NewPage = () => {
               <Select
                 placeholder="Filter Category"
                 value={tableCategoryFilter}
-                onChange={(e) => setTableCategoryFilter(e.target.value)}
+                onChange={(e) => {
+                  setTableCategoryFilter(e.target.value);
+                  setTableSubcategoryFilter("All"); // Reset subcategory filter
+                }}
                 bg="white"
                 color="black"
                 size="sm"
@@ -584,7 +752,32 @@ const NewPage = () => {
                   </option>
                 ))}
               </Select>
-              {/* Removed Time Frame Select Dropdown */}
+              <Select
+                placeholder="Filter Subcategory"
+                value={tableSubcategoryFilter}
+                onChange={(e) => setTableSubcategoryFilter(e.target.value)}
+                bg="white"
+                color="black"
+                size="sm"
+                width="200px"
+                isDisabled={tableCategoryFilter === "All"}
+              >
+                <option value="All">All</option>
+                {tableCategoryFilter !== "All" &&
+                  Array.from(
+                    new Set(
+                      eventData
+                        .filter((d) => d.category === tableCategoryFilter)
+                        .map((d) => d.subcategory)
+                    )
+                  )
+                    .sort()
+                    .map((subcat) => (
+                      <option key={subcat} value={subcat}>
+                        {subcat}
+                      </option>
+                    ))}
+              </Select>
               <Button
                 colorScheme={compareMode ? "red" : "teal"}
                 onClick={compareMode ? handleCancelCompare : handleCompare}
@@ -595,12 +788,15 @@ const NewPage = () => {
               </Button>
             </Flex>
           </Flex>
+          {/* Removed Reset Timeline Button from Events Table */}
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
                 <Th fontSize="sm" color="white" fontWeight="bold">Select</Th>
                 <Th fontSize="sm" color="white" fontWeight="bold">Week</Th>
                 <Th fontSize="sm" color="white" fontWeight="bold">Date</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Category</Th>
+                <Th fontSize="sm" color="white" fontWeight="bold">Subcategory</Th>
                 <Th fontSize="sm" color="white" fontWeight="bold">Event Name</Th>
                 <Th fontSize="sm" color="white" fontWeight="bold">Description</Th>
                 <Th isNumeric fontSize="sm" color="white" fontWeight="bold">SITE</Th>
@@ -615,13 +811,7 @@ const NewPage = () => {
               {displayedTableData.map((row) => (
                 <Tr
                   key={row.id}
-                  bg={
-                    row.category === "LigaMX"
-                      ? "blue.600"
-                      : row.category === "Politics"
-                      ? "green.600"
-                      : "purple.600"
-                  }
+                  bg={categoryColors[row.category] || "gray.600"}
                   _hover={{ bg: "gray.600", cursor: "pointer" }}
                   onClick={() => handleRowClick(row)}
                   fontSize="xs"
@@ -636,6 +826,8 @@ const NewPage = () => {
                   </Td>
                   <Td>{row.weekNumber}</Td>
                   <Td>{row.eventDate}</Td>
+                  <Td>{row.category}</Td>
+                  <Td>{row.subcategory}</Td>
                   <Td>{row.eventName}</Td>
                   <Td>{row.eventDescription}</Td>
                   <Td isNumeric>{formatNumber(row.siteUsers)}</Td>
@@ -645,7 +837,7 @@ const NewPage = () => {
                     {row.ctv > 0 ? formatNumber(row.ctv) : "-"}
                   </Td>
                   <Td isNumeric fontWeight="bold">{formatNumber(row.total)}</Td> {/* Made TOTAL numbers bold */}
-                  <Td>{row.aprov}</Td>
+                  <Td>{row.aprov !== null ? formatNumber(row.aprov) : "-"}</Td>
                 </Tr>
               ))}
             </Tbody>
@@ -855,7 +1047,10 @@ const NewPage = () => {
             <Flex direction="column" gap={2}>
               <Select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setSelectedSubcategory("All"); // Reset subcategory filter
+                }}
                 placeholder="Select Category"
                 bg="white"
                 color="black"
@@ -868,7 +1063,24 @@ const NewPage = () => {
                   </option>
                 ))}
               </Select>
-              {/* Removed Time Frame Select Dropdown */}
+              <Select
+                value={selectedSubcategory}
+                onChange={(e) => setSelectedSubcategory(e.target.value)}
+                placeholder="Select Subcategory"
+                bg="white"
+                color="black"
+                size="sm"
+                isDisabled={selectedCategory === "All"}
+              >
+                <option value="All">All</option>
+                {selectedCategory !== "All" &&
+                  subcategories.map((subcat) => (
+                    <option key={subcat} value={subcat}>
+                      {subcat}
+                    </option>
+                  ))}
+              </Select>
+              {/* Removed Reset Timeline Button from Distribution Section */}
             </Flex>
           </Box>
 
@@ -916,22 +1128,6 @@ const NewPage = () => {
                   {averageSites}
                 </Text>
               </Box>
-              {/* Average CTV */}
-              <Box
-                bg="linear-gradient(90deg, #000000, #7800ff)"
-                p={4}
-                borderRadius="20px"
-                width="100%"
-                textAlign="center"
-                border="2px solid"
-              >
-                <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average CTV
-                </Text>
-                <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageCtv}
-                </Text>
-              </Box>
               {/* Average SUBTOTAL */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
@@ -946,6 +1142,22 @@ const NewPage = () => {
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
                   {averageSubtotal}
+                </Text>
+              </Box>
+              {/* Average CTV */}
+              <Box
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
+                borderRadius="20px"
+                width="100%"
+                textAlign="center"
+                border="2px solid"
+              >
+                <Text fontSize="sm" fontWeight="semibold" color="white">
+                  Average CTV
+                </Text>
+                <Text fontSize="xl" fontWeight="bold" color="white">
+                  {averageCtv}
                 </Text>
               </Box>
               {/* Average TOTAL */}
@@ -964,7 +1176,22 @@ const NewPage = () => {
                   {averageTotal}
                 </Text>
               </Box>
-              {/* Removed Average Aprov */}
+              {/* Average Aprov */}
+              <Box
+                bg="linear-gradient(90deg, #000000, #7800ff)"
+                p={4}
+                borderRadius="20px"
+                width="100%"
+                textAlign="center"
+                border="2px solid"
+              >
+                <Text fontSize="sm" fontWeight="semibold" color="white">
+                  Average Aprov
+                </Text>
+                <Text fontSize="xl" fontWeight="bold" color="white">
+                  {averageAprov}
+                </Text>
+              </Box>
             </Flex>
           </Box>
         </Grid>
@@ -998,6 +1225,7 @@ const NewPage = () => {
               <option value="CTV">CTV</option>
               <option value="SUBTOTAL">SUBTOTAL (APPS + SITE)</option>
               <option value="TOTAL">TOTAL (SUBTOTAL + CTV)</option>
+              <option value="ALL">All</option>
             </Select>
 
             {/* Customizable Event Selection Dropdown */}
@@ -1037,8 +1265,6 @@ const NewPage = () => {
                 })}
               </Flex>
             </Box>
-
-            {/* Removed Time Frame Select Dropdown */}
           </Flex>
           <Flex justifyContent="center">
             {lineGraphData.dates.length === 0 ? (
@@ -1053,7 +1279,25 @@ const NewPage = () => {
                   plot_bgcolor: "transparent",
                   xaxis: {
                     title: "Event Date",
-                    type: "category",
+                    type: "date",
+                    rangeselector: {
+                      buttons: [
+                        {
+                          count: 1,
+                          label: "1m",
+                          step: "month",
+                          stepmode: "backward",
+                        },
+                        {
+                          count: 6,
+                          label: "6m",
+                          step: "month",
+                          stepmode: "backward",
+                        },
+                        { step: "all" },
+                      ],
+                    },
+                    rangeslider: { visible: true },
                     tickangle: -45,
                     automargin: true,
                     tickfont: {
