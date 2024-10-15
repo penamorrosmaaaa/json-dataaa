@@ -1231,7 +1231,7 @@ const NewPage = () => {
             {/* Customizable Event Selection Dropdown */}
             <Box width={{ base: "100%", md: "300px" }}>
               <Select
-                placeholder="Select Event"
+                placeholder="Select Events"
                 onChange={handleEventSelection}
                 bg="gray.600"
                 color="white"
@@ -1239,10 +1239,10 @@ const NewPage = () => {
                 value=""
               >
                 {lineGraphData.events
-                  .filter((event) => !selectedEvents.includes(event.id))
-                  .map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.eventName} - {event.eventDate}
+  .filter((event) => !selectedEvents.includes(event.id))
+  .map((event) => (
+    <option key={event.id} value={event.id}>
+      {event.eventDescription || "No Description"}
                     </option>
                   ))}
               </Select>
@@ -1258,7 +1258,7 @@ const NewPage = () => {
                       variant="solid"
                       colorScheme="teal"
                     >
-                      <TagLabel>{event ? `${event.eventName} - ${event.eventDate}` : "Unknown Event"}</TagLabel>
+                      <TagLabel>{event ? `${event.eventDescription || "No Description"}` : "Unknown Event"}</TagLabel>
                       <TagCloseButton onClick={() => handleRemoveSelectedEvent(eventId)} />
                     </Tag>
                   );
