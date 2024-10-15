@@ -37,6 +37,16 @@ const parseDateString = (dateStr) => {
   return new Date(year, month, parseInt(day, 10));
 };
 
+// Helper function to format dates as "M/D/YYYY"
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr);
+  if (isNaN(date)) return "Invalid Date";
+  const month = date.getMonth() + 1; // Months are zero-based
+  const day = date.getDate();
+  const year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
 // Helper function to format numbers with commas and no decimals
 const formatNumber = (number) => {
   if (number === null || number === undefined) return "-";
@@ -522,20 +532,18 @@ const NewPage = () => {
         mode: "lines+markers",
         name: "APPS'",
         line: { color: "#36a2eb" },
-        fill: 'tozeroy', // Filled area below the line
-        fillcolor: "#36a2eb33", // 20% opacity
+        fill: 'tozeroy',
+        fillcolor: "#36a2eb33",
         marker: {
           color: "white",
           size: 6,
         },
-        text: lineGraphData.APPS.map((y) => formatNumber(y)),
-        textposition: "top center",
-        textfont: {
-          color: "white",
-          size: 12,
-          family: "Arial",
-          weight: "bold",
-        },
+        // Removed 'text' to prevent interference
+        hovertext: lineGraphData.events.map(
+          (event) => `${event.eventDescription} ${formatDate(event.eventDate)} ${formatNumber(event.appsUsers)}`
+        ),
+        hoverinfo: "text",
+        hovertemplate: "%{hovertext}<extra></extra>",
       };
 
       const traceSITE = {
@@ -551,14 +559,12 @@ const NewPage = () => {
           color: "white",
           size: 6,
         },
-        text: lineGraphData.SITE.map((y) => formatNumber(y)),
-        textposition: "top center",
-        textfont: {
-          color: "white",
-          size: 12,
-          family: "Arial",
-          weight: "bold",
-        },
+        // Removed 'text' to prevent interference
+        hovertext: lineGraphData.events.map(
+          (event) => `${event.eventDescription} ${formatDate(event.eventDate)} ${formatNumber(event.siteUsers)}`
+        ),
+        hoverinfo: "text",
+        hovertemplate: "%{hovertext}<extra></extra>",
       };
 
       const traceCTV = {
@@ -574,14 +580,12 @@ const NewPage = () => {
           color: "white",
           size: 6,
         },
-        text: lineGraphData.CTV.map((y) => (y > 0 ? formatNumber(y) : "-")),
-        textposition: "top center",
-        textfont: {
-          color: "white",
-          size: 12,
-          family: "Arial",
-          weight: "bold",
-        },
+        // Removed 'text' to prevent interference
+        hovertext: lineGraphData.events.map(
+          (event) => `${event.eventDescription} ${formatDate(event.eventDate)} ${event.ctv > 0 ? formatNumber(event.ctv) : "-"}`
+        ),
+        hoverinfo: "text",
+        hovertemplate: "%{hovertext}<extra></extra>",
       };
 
       return [traceAPPS, traceSITE, traceCTV];
@@ -594,20 +598,20 @@ const NewPage = () => {
       mode: "lines+markers",
       name: lineGraphDisplayData.name,
       line: { color: lineGraphDisplayData.color },
-      fill: 'tozeroy', // Filled area below the line
-      fillcolor: `${lineGraphDisplayData.color}33`, // 20% opacity
+      fill: 'tozeroy',
+      fillcolor: `${lineGraphDisplayData.color}33`,
       marker: {
         color: "white",
         size: 6,
       },
-      text: lineGraphDisplayData.y.map((y) => formatNumber(y)),
-      textposition: "top center",
-      textfont: {
-        color: "white",
-        size: 12,
-        family: "Arial",
-        weight: "bold",
-      },
+      // Removed 'text' to prevent interference
+      hovertext: lineGraphData.events.map(
+        (event) => `${event.eventDescription} ${formatDate(event.eventDate)} ${formatNumber(
+          lineGraphDisplayData.y[lineGraphData.events.indexOf(event)]
+        )}`
+      ),
+      hoverinfo: "text",
+      hovertemplate: "%{hovertext}<extra></extra>",
     };
 
     if (selectedEvents.length === 0) {
@@ -639,20 +643,22 @@ const NewPage = () => {
         color: "white",
         size: 8,
       },
-      text: selectedEventData.map((e) => formatNumber(
-        selectedGraphOption === "APPS" ? e.appsUsers :
-        selectedGraphOption === "SITE" ? e.siteUsers :
-        selectedGraphOption === "CTV" ? e.ctv :
-        selectedGraphOption === "SUBTOTAL" ? e.subtotal :
-        e.total
-      )),
-      textposition: "top center",
-      textfont: {
-        color: "white",
-        size: 12,
-        family: "Arial",
-        weight: "bold",
-      },
+      // Removed 'text' to prevent interference
+      hovertext: selectedEventData.map(
+        (event) => `${event.eventDescription} ${formatDate(event.eventDate)} ${formatNumber(
+          selectedGraphOption === "APPS"
+            ? event.appsUsers
+            : selectedGraphOption === "SITE"
+            ? event.siteUsers
+            : selectedGraphOption === "CTV"
+            ? event.ctv
+            : selectedGraphOption === "SUBTOTAL"
+            ? event.subtotal
+            : event.total
+        )}`
+      ),
+      hoverinfo: "text",
+      hovertemplate: "%{hovertext}<extra></extra>",
     };
 
     return [selectedTrace];
@@ -874,7 +880,7 @@ const NewPage = () => {
                 boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)"
               >
                 <Text fontSize="sm" mb={2} textAlign="center" color="white" fontWeight="bold">
-                  Distribution for {selectedRow.eventName} on {selectedRow.eventDate}
+                  Distribution for {selectedRow.eventName} on {formatDate(selectedRow.eventDate)}
                 </Text>
                 <Flex justifyContent="center">
                   <Plot
@@ -886,7 +892,7 @@ const NewPage = () => {
                         marker: {
                           colors: ["#36a2eb", "#ff6384", "#ffce56"],
                         },
-                        hoverinfo: "label+percent",
+                        hoverinfo: "label+percent+value",
                         textinfo: "label+value",
                         textposition: "inside",
                         textfont: {
@@ -953,7 +959,7 @@ const NewPage = () => {
                 <Tbody>
                   <Tr>
                     <Td fontWeight="bold" color="white">
-                      {comparisonData.baseEvent.eventName} - {comparisonData.baseEvent.eventDate}
+                      {comparisonData.baseEvent.eventName} - {formatDate(comparisonData.baseEvent.eventDate)}
                     </Td>
                     <Td isNumeric>{formatNumber(comparisonData.baseEvent.appsUsers)}</Td>
                     <Td isNumeric>{formatNumber(comparisonData.baseEvent.siteUsers)}</Td>
@@ -979,7 +985,7 @@ const NewPage = () => {
                     return (
                       <Tr key={index}>
                         <Td fontWeight="bold" color="white">
-                          {event ? event.eventName : comp.eventName} - {comp.eventDate}
+                          {event ? `${event.eventName} - ${formatDate(event.eventDate)}` : `${comp.eventName} - ${formatDate(comp.eventDate)}`}
                         </Td>
                         <Td isNumeric>{event ? formatNumber(event.appsUsers) : "0"}</Td>
                         <Td isNumeric>{event ? formatNumber(event.siteUsers) : "0"}</Td>
@@ -1239,10 +1245,10 @@ const NewPage = () => {
                 value=""
               >
                 {lineGraphData.events
-  .filter((event) => !selectedEvents.includes(event.id))
-  .map((event) => (
-    <option key={event.id} value={event.id}>
-      {event.eventDescription || "No Description"}
+                  .filter((event) => !selectedEvents.includes(event.id))
+                  .map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.eventDescription || "No Description"}
                     </option>
                   ))}
               </Select>
