@@ -528,58 +528,67 @@ const DataTable = () => {
 
           {/* Table Component */}
           <TableContainer
-            overflowY="scroll"
-            maxH="600px" // Adjust this value based on the approximate height of 10 rows
-            overflowX="hidden" // Prevent horizontal scrolling
-          >
-            <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
-              <Thead>
-                <Tr>
-                  <Th
-                    maxW="200px"
-                    isTruncated
-                    whiteSpace="nowrap"
-                    overflow="hidden"
-                    textOverflow="ellipsis"
-                    color="white" // Make label white
-                  >
-                    Object
-                  </Th>
-                  <Th isNumeric color="white">Percentage (%)</Th> {/* Include % symbol */}
-                  <Th isNumeric color="white">Amount</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {displayedData.map((row, index) => {
-                  return (
-                    <Tr
-                      key={index}
-                      _hover={{
-                        cursor: "pointer",
-                      }}
-                      onClick={() => handleRowClick(row)}
-                      bg={
-                        selectedRow && selectedRow.object === row.object
-                          ? "rgba(255, 255, 255, 0.3)"
-                          : "transparent"
-                      } // Highlight the selected row
-                    >
-                      <Td>
-                        <Tooltip label={row.object} hasArrow>
-                          <Text isTruncated maxW="200px">
-                            {row.object}
-                          </Text>
-                        </Tooltip>
-                      </Td>
-                      <Td isNumeric>{row.percentage}</Td>
-                      <Td isNumeric>{row.amount}</Td>
-                    </Tr>
-                  );
-                })}
-              </Tbody>
-              {/* Removed Tfoot to eliminate bottom labels */}
-            </Table>
-          </TableContainer>
+  overflowY="scroll"
+  maxH="600px" // Adjust this value based on the approximate height of 10 rows
+  overflowX="hidden" // Prevent horizontal scrolling
+  sx={{
+    /* Hide scrollbar for IE, Edge, and Firefox */
+    scrollbarWidth: "none", // Firefox
+    msOverflowStyle: "none", // IE 10+
+
+    /* Hide scrollbar for Chrome, Safari, and Opera */
+    "&::-webkit-scrollbar": {
+      display: "none",
+    },
+  }}
+>
+  <Table variant="simple" size="sm" sx={{ tableLayout: "auto" }}>
+    <Thead>
+      <Tr>
+        <Th
+          maxW="200px"
+          isTruncated
+          whiteSpace="nowrap"
+          overflow="hidden"
+          textOverflow="ellipsis"
+          color="white" // Make label white
+        >
+          Object
+        </Th>
+        <Th isNumeric color="white">Percentage (%)</Th> {/* Include % symbol */}
+        <Th isNumeric color="white">Amount</Th>
+      </Tr>
+    </Thead>
+    <Tbody>
+      {displayedData.map((row, index) => (
+        <Tr
+          key={index}
+          _hover={{
+            cursor: "pointer",
+          }}
+          onClick={() => handleRowClick(row)}
+          bg={
+            selectedRow && selectedRow.object === row.object
+              ? "rgba(255, 255, 255, 0.3)"
+              : "transparent"
+          } // Highlight the selected row
+        >
+          <Td>
+            <Tooltip label={row.object} hasArrow>
+              <Text isTruncated maxW="200px">
+                {row.object}
+              </Text>
+            </Tooltip>
+          </Td>
+          <Td isNumeric>{row.percentage}</Td>
+          <Td isNumeric>{row.amount}</Td>
+        </Tr>
+      ))}
+    </Tbody>
+    {/* Removed Tfoot to eliminate bottom labels */}
+  </Table>
+</TableContainer>
+
         </Box>
 
         {/* Detailed Graph Section */}
