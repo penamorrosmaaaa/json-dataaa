@@ -220,6 +220,19 @@ const DataTable = () => {
     return formattedData;
   }, [currentDate, allData]);
 
+  // Calculate the maximum length of 'object' field
+  const maxObjectLength = useMemo(() => {
+    if (!displayedData || displayedData.length === 0) return 0;
+    return Math.max(...displayedData.map((row) => row.object.length));
+  }, [displayedData]);
+
+  // Determine the font size based on the maximum object length
+  const objectFontSize = useMemo(() => {
+    if (maxObjectLength > 100) return "xs";
+    if (maxObjectLength > 50) return "sm";
+    return "md";
+  }, [maxObjectLength]);
+
   // Update selectedRow based on displayedData
   useEffect(() => {
     const initialRow =
@@ -525,7 +538,7 @@ const DataTable = () => {
             />
           </Flex>
 
-          {/* Updated TableContainer with Complete Text Display and Dynamic Font Size */}
+          {/* Updated TableContainer with Hidden Scrollbar and Uniform Font Size */}
           <TableContainer
             overflowY="scroll"
             maxH="600px" // Adjust this value based on the approximate height of 10 rows
@@ -575,7 +588,7 @@ const DataTable = () => {
                         <Text
                           whiteSpace="normal" // Allow text to wrap
                           wordBreak="break-word" // Break long words if necessary
-                          fontSize={row.object.length > 50 ? "sm" : "md"} // Dynamic font size
+                          fontSize={objectFontSize} // Uniform font size based on max length
                         >
                           {row.object}
                         </Text>
