@@ -80,6 +80,8 @@ const NewPage = () => {
 
   const [timelineRange, setTimelineRange] = useState({ start: null, end: null }); // Timeline range for line graph
 
+  const [metricsType, setMetricsType] = useState("Average"); // New state for metrics type
+
   const toast = useToast();
 
   // New Google Sheets CSV URL
@@ -352,6 +354,16 @@ const NewPage = () => {
     return formatNumber(sumCtv / ctvValues.length);
   }, [distributionFilteredData]);
 
+  // Calculate TOTAL Aprov
+  const totalAprov = useMemo(() => {
+    const aprovValues = distributionFilteredData
+      .map((d) => d.aprov)
+      .filter((val) => val !== null);
+    if (aprovValues.length === 0) return "0";
+    const sumAprov = aprovValues.reduce((sum, val) => sum + val, 0);
+    return formatNumber(sumAprov);
+  }, [distributionFilteredData]);
+
   // Prepare data for Pie Chart (Distribution Section)
   const pieData = useMemo(() => {
     return [
@@ -569,7 +581,7 @@ const NewPage = () => {
 
       const traceCTV = {
         x: lineGraphData.dates,
-        y: lineGraphData.CTV,
+        y: lineGraphData.Ctv,
         type: "scatter",
         mode: "lines+markers",
         name: "CTV",
@@ -1090,19 +1102,32 @@ const NewPage = () => {
             </Flex>
           </Box>
 
-          {/* Averages Box (Distribution Section) */}
+          {/* Metrics Box (Average/Total Metrics) */}
           <Box
             bg="linear-gradient(90deg, #000000, #7800ff)"
             borderRadius="20px"
-            p={4}
+            p={6}
             border="5px solid rgba(255, 255, 255, 0.8)"
             boxShadow="0px 0px 15px rgba(200, 200, 200, 0.5)"
           >
-            <Text fontSize="md" mb={4} textAlign="center" color="white" fontWeight="bold">
-              Average Metrics
-            </Text>
+            <Flex justifyContent="space-between" alignItems="center" mb={4} flexWrap="wrap" gap={2}>
+              <Text fontSize="lg" fontWeight="bold" color="white">
+                {metricsType} Metrics
+              </Text>
+              <Select
+                value={metricsType}
+                onChange={(e) => setMetricsType(e.target.value)}
+                bg="white"
+                color="black"
+                size="sm"
+                width="150px"
+              >
+                <option value="Average">Average</option>
+                <option value="Total">Total</option>
+              </Select>
+            </Flex>
             <Flex direction="column" gap={4} align="center">
-              {/* Average APPS' */}
+              {/* APPS' */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1112,13 +1137,13 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average APPS'
+                  {metricsType} APPS'
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageApps}
+                  {metricsType === "Average" ? averageApps : formatNumber(totalApps)}
                 </Text>
               </Box>
-              {/* Average SITE */}
+              {/* SITE */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1128,13 +1153,13 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average SITE
+                  {metricsType} SITE
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageSites}
+                  {metricsType === "Average" ? averageSites : formatNumber(totalSites)}
                 </Text>
               </Box>
-              {/* Average SUBTOTAL */}
+              {/* SUBTOTAL */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1144,13 +1169,13 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average SUBTOTAL
+                  {metricsType} SUBTOTAL
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageSubtotal}
+                  {metricsType === "Average" ? averageSubtotal : formatNumber(totalSubtotal)}
                 </Text>
               </Box>
-              {/* Average CTV */}
+              {/* CTV */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1160,13 +1185,13 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average CTV
+                  {metricsType} CTV
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageCtv}
+                  {metricsType === "Average" ? averageCtv : formatNumber(totalCtv)}
                 </Text>
               </Box>
-              {/* Average TOTAL */}
+              {/* TOTAL */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1176,13 +1201,13 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average TOTAL
+                  {metricsType} TOTAL
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageTotal}
+                  {metricsType === "Average" ? averageTotal : formatNumber(totalTotal)}
                 </Text>
               </Box>
-              {/* Average Aprov */}
+              {/* Aprov */}
               <Box
                 bg="linear-gradient(90deg, #000000, #7800ff)"
                 p={4}
@@ -1192,10 +1217,10 @@ const NewPage = () => {
                 border="2px solid"
               >
                 <Text fontSize="sm" fontWeight="semibold" color="white">
-                  Average Aprov
+                  {metricsType} Aprov
                 </Text>
                 <Text fontSize="xl" fontWeight="bold" color="white">
-                  {averageAprov}
+                  {metricsType === "Average" ? averageAprov : totalAprov}
                 </Text>
               </Box>
             </Flex>
