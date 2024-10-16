@@ -345,10 +345,15 @@ const General = () => {
           bg="transparent"  // Explicitly set the background to transparent
         >
           {/* New Label Added Here */}
-          <Text fontSize="sm" color="gray.400" mb={4}>
-            {latestDateLabel}
-          </Text>
-          {/* End of New Label */}
+          <Text
+  fontSize="lg"          // Adjusted font size for subtitle appearance
+  color="white"          // Changed color to white
+  fontWeight="semibold"  // Made the text bolder
+  mb={4}
+>
+  {latestDateLabel}
+</Text>
+
 
           {/* Main Data Display: Daily Counts */}
           <Flex
