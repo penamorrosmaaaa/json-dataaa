@@ -48,18 +48,18 @@ const App = () => {
           {/* Navigation Bar */}
           <Flex mb={8} gap={4}>
             <Link as={RouterLink} to="/" fontSize="lg" color="white" fontWeight="bold">
-              Home
+              Popular Objects
             </Link>
             <Link as={RouterLink} to="/new-page" fontSize="lg" color="white" fontWeight="bold">
-              New Page
+              Digital Calendar
             </Link>
             {isAuthenticated && (
               <>
                 <Link as={RouterLink} to="/home-admin" fontSize="lg" color="white" fontWeight="bold">
-                  Home Admin
+                  Admin - Popular Objects
                 </Link>
                 <Link as={RouterLink} to="/newpage-admin" fontSize="lg" color="white" fontWeight="bold">
-                  New Page Admin
+                  Admin - Digital Calendar
                 </Link>
                 <Button onClick={handleLogout} colorScheme="red" variant="outline">
                   Logout
